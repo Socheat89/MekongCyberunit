@@ -1,8 +1,10 @@
-# 1. Our Product Catalog
+# 1. Expanded Product Catalog
 inventory = {
     "101": {"name": "shampoo", "price": 15.00, "stock": 0},
     "102": {"name": "conditioner", "price": 18.50, "stock": 5},
-    "103": {"name": "body wash", "price": 12.00, "stock": 12}
+    "103": {"name": "body wash", "price": 12.00, "stock": 12},
+    "104": {"name": "face wash", "price": 9.99, "stock": 8},
+    "105": {"name": "moisturizer", "price": 22.00, "stock": 4}
 }
 
 
@@ -25,33 +27,53 @@ def display_inventory():
 # 3. Function to handle the purchase
 def purchase_item(item_id):
     if item_id not in inventory:
-        print("\n❌ Error: Invalid Item ID. Please try again.")
+        print("\n❌ Error: Invalid Item ID.")
         return
 
     product = inventory[item_id]
-
     print(f"\n🛒 Checking availability for {product['name'].capitalize()}...")
 
     if product["stock"] > 0:
-        product["stock"] -= 1  # Reduce inventory
+        product["stock"] -= 1
         print(f"✅ Success! You bought 1x {product['name']}. That will be ${product['price']:.2f}.")
     else:
         print(f"❌ Sorry, {product['name']} is currently out of stock!")
 
 
+# 4. NEW: Function to add a brand new product to the inventory
+def add_new_product():
+    print("\n--- ➕ ADD NEW PRODUCT ---")
+
+    # Generate a new unique ID automatically
+    new_id = str(max(int(k) for k in inventory.keys()) + 1)
+
+    name = input("Enter product name: ").strip().lower()
+
+    # Error handling for inputs to prevent crashes if a user types text for price/stock
+    try:
+        price = float(input("Enter product price ($): "))
+        stock = int(input("Enter starting stock quantity: "))
+    except ValueError:
+        print("❌ Invalid price or stock number. Product creation failed.")
+        return
+
+    # Save to our dictionary
+    inventory[new_id] = {"name": name, "price": price, "stock": stock}
+    print(f"✅ Successfully added {name.capitalize()} as Item ID: {new_id}!")
+
+
 # --- MAIN INTERACTIVE LOOP ---
-print("Welcome to the Python Terminal Store!")
+print("Welcome to the Admin & Shopping Terminal!")
 
 while True:
     display_inventory()
+    print("Options: [Type ID to Buy] | [Type 'add' to Add Product] | [Type 'exit' to Quit]")
+    user_choice = input("What would you like to do? ").strip().lower()
 
-    # Prompting the user for input
-    user_choice = input("Enter the ID of the item you want to buy (or type 'exit' to quit): ").strip()
-
-    # Check if user wants to stop the program
-    if user_choice.lower() == 'exit':
-        print("\nThank you for shopping with us! Goodbye.")
+    if user_choice == 'exit':
+        print("\nThank you for using the system. Goodbye!")
         break
-
-    # Process the purchase based on what they typed
-    purchase_item(user_choice)
+    elif user_choice == 'add':
+        add_new_product()
+    else:
+        purchase_item(user_choice)
