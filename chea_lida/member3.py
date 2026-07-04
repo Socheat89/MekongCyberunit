@@ -1,11 +1,7 @@
-def greet(name):
-    return f"Hello, {name}!"
+item_name = "Car"
+item_price = 5.99
+is_in_stock = True
 
+is_in_stock = "out of stock"
 
-def add(a, b):
-    return a + b
-
-
-if __name__ == "__main__":
-    print(greet("World"))
-    print("2 + 3 =", add(2, 3))
+print(is_in_stock)
