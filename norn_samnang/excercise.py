@@ -1,4 +1,4 @@
-# 1. Define the Product Catalog using dictionaries
+# 1. Our Product Catalog
 inventory = {
     "101": {"name": "shampoo", "price": 15.00, "stock": 0},
     "102": {"name": "conditioner", "price": 18.50, "stock": 5},
@@ -6,14 +6,13 @@ inventory = {
 }
 
 
-# 2. Function to display all products and their availability
+# 2. Function to print the store menu
 def display_inventory():
     print("\n================ CURRENT CATALOG ================")
     print(f"{'ID':<6}{'Item Name':<15}{'Price':<10}{'Status':<15}")
     print("-" * 50)
 
     for item_id, details in inventory.items():
-        # Determine stock status automatically from the quantity
         if details["stock"] > 0:
             status = f"In Stock ({details['stock']})"
         else:
@@ -23,35 +22,36 @@ def display_inventory():
     print("=================================================\n")
 
 
-# 3. Function to handle a purchase request
+# 3. Function to handle the purchase
 def purchase_item(item_id):
-    # Check if the product ID exists in our inventory
     if item_id not in inventory:
-        print("❌ Error: Invalid Item ID.")
+        print("\n❌ Error: Invalid Item ID. Please try again.")
         return
 
     product = inventory[item_id]
 
-    print(f"🛒 Attempting to buy: {product['name'].capitalize()}...")
+    print(f"\n🛒 Checking availability for {product['name'].capitalize()}...")
 
-    # Check stock availability
     if product["stock"] > 0:
-        product["stock"] -= 1  # Reduce stock by 1
-        print(f"✅ Success! You bought {product['name']}. That will be ${product['price']:.2f}.")
+        product["stock"] -= 1  # Reduce inventory
+        print(f"✅ Success! You bought 1x {product['name']}. That will be ${product['price']:.2f}.")
     else:
-        print(f"❌ Sorry, {product['name']} is currently out of stock and cannot be purchased.")
+        print(f"❌ Sorry, {product['name']} is currently out of stock!")
 
 
-# --- SIMULATION RUN ---
+# --- MAIN INTERACTIVE LOOP ---
+print("Welcome to the Python Terminal Store!")
 
-# Step 1: Show initial stock (Shampoo starts at 0 stock, Body Wash starts at 12)
-display_inventory()
+while True:
+    display_inventory()
 
-# Step 2: Try to buy an out-of-stock item (Shampoo)
-purchase_item("101")
+    # Prompting the user for input
+    user_choice = input("Enter the ID of the item you want to buy (or type 'exit' to quit): ").strip()
 
-# Step 3: Try to buy an in-stock item (Body Wash)
-purchase_item("103")
+    # Check if user wants to stop the program
+    if user_choice.lower() == 'exit':
+        print("\nThank you for shopping with us! Goodbye.")
+        break
 
-# Step 4: Show updated stock to see the changes
-display_inventory()
+    # Process the purchase based on what they typed
+    purchase_item(user_choice)
