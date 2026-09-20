@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔒 System Notification</title>
+    <style>
+        /* ==========================================
+           1. DESIGN SYSTEM & VARIABLES
+           ========================================== */
+        :root {
+            --bg-main: #0a0b10;
+            --bg-card: #11131c;
+            --border-color: #1f2438;
+            --accent-glow: rgba(0, 255, 102, 0.15);
+            
+            /* UI Colors */
+            --text-primary: #ffffff;
+            --text-secondary: #8a94a6;
+            --color-green: #00ff66;
+            --color-red: #ff3366;
+            --color-amber: #ffaa00;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* ==========================================
+           2. CONTAINER & CARD UI
+           ========================================== */
+        .terminal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 30px var(--accent-glow);
+            text-align: center;
+            position: relative;
+        }
+
+        /* Top Bar Window Dot Deco */
+        .card-header-deco {
+            display: flex;
+            gap: 6px;
+            position: absolute;
+            top: 15px;
+            left: 15px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--border-color);
+        }
+        .dot.red { background: var(--color-red); }
+        .dot.amber { background: var(--color-amber); }
+        .dot.green { background: var(--color-green); }
+
+        /* ==========================================
+           3. TYPOGRAPHY & COMPONENTS
+           ========================================== */
+        .status-badge {
+            display: inline-block;
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--color-red);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 51, 102, 0.2);
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        p.description {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        /* Progress Bar Loading */
+        .progress-wrapper {
+            margin: 20px 0;
+        }
+        .progress-bar {
+            background: #191d30;
+            border-radius: 6px;
+            height: 6px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .progress-fill {
+            background: linear-gradient(90deg, var(--color-red), var(--color-amber));
+            height: 100%;
+            width: 0%;
+            transition: width 3s cubic-bezier(0.1, 0.8, 0.1, 1);
+        }
+
+        /* Demand Box Section */
+        .instruction-box {
+            background: #171a26;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+            text-align: center; /* ដាក់ឱ្យចំកណ្តាល */
+        }
+        .instruction-title {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        .instruction-detail {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-amber);
+            margin-bottom: 15px;
+        }
+
+        /* QR Code Styling */
+        .qr-container {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            display: inline-block;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .qr-image {
+            display: block;
+            width: 180px;  /* ទំហំសមល្មមស្អាត */
+            height: 180px;
+            object-fit: contain;
+        }
+
+        /* ==========================================
+           4. PRANK REVEAL PANEL
+           ========================================== */
+        .reveal-panel {
+            display: none;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px dashed var(--border-color);
+            animation: fadeIn 0.5s ease forwards;
+        }
+        .reveal-title {
+            color: var(--color-green);
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .reveal-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="terminal-card">
+        <div class="card-header-deco">
+            <div class="dot red"></div>
+            <div class="dot amber"></div>
+            <div class="dot green"></div>
+        </div>
+
+        <div class="status-badge" id="status-tag">Telegram Hacking</div>
+        
+        <h1 id="main-title">គណនី Telegram របស់អ្នកត្រូវបាន Hack</h1>
+        <p class="description" id="main-desc">Telegram របស់អ្នកត្រូវបាន Hack ហើយ។</p>
+
+        <div class="progress-wrapper" id="loader-zone">
+            <div class="progress-bar">
+                <div class="progress-fill" id="fill-bar"></div>
+            </div>
+        </div>
+
+        <div class="instruction-box">
+            <div class="instruction-title">លក្ខខណ្ឌដោះស្រាយបន្ទាន់</div>
+            <div class="instruction-detail">☕ ប៉ាវកាហ្វេ ១កែវ ដើម្បីទទួលបានគណនីវិញ</div>
+            
+            <div class="qr-container">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=Prank" alt="QR Code" class="qr-image" id="user-qr">
+            </div>
+        </div>
+
+    
+    </div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const fillBar = document.getElementById('fill-bar');
+            const prankReveal = document.getElementById('prank-reveal');
+            const statusTag = document.getElementById('status-tag');
+            const mainTitle = document.getElementById('main-title');
+            const qrImage = document.getElementById('user-qr');
+
+            // 💡 របៀបដាក់ Link QR របស់អ្នក៖
+            // ជំនួសតំណភ្ជាប់ (URL) ខាងក្រោមនេះ ទៅជា Link រូបភាព QR ពិតប្រាកដរបស់អ្នក
+            qrImage.src = "https://i.ibb.co/tMMwTdVS/image-2026-07-01-10-47-10.png";
+
+            // 1. បញ្ឆេះ Progress Bar ឱ្យដើរភ្លាមៗពេលបើកទំព័រ
+            setTimeout(() => {
+                fillBar.style.width = '100%';
+            }, 100);
+
+            // 2. បង្ហាញការលេងសើចពិតប្រាកដក្រោយយករយៈពេល 3.5 វិនាទី
+            setTimeout(() => {
+                statusTag.style.background = 'rgba(0, 255, 102, 0.1)';
+                statusTag.style.color = 'var(--color-green)';
+                statusTag.style.borderColor = 'rgba(0, 255, 102, 0.2)';
+                statusTag.innerText = "Hack SUCCESSFUL";
+                
+                mainTitle.style.color = 'var(--color-green)';
+                prankReveal.style.display = 'block';
+            }, 3500);
+        });
+    </script>
+
+</body>
+</html>

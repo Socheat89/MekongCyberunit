@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mekong Cyberunit - Team Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #1e293b, #334155);
+            border-radius: 1rem;
+            border: 1px solid #475569;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        header p { font-size: 1.1rem; color: #94a3b8; }
+        header .badge {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.4rem 1.2rem;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 2rem;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 1.5rem;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            border-color: #475569;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #334155;
+        }
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .card-header h2 { font-size: 1.2rem; font-weight: 600; }
+        .card-header .dir { font-size: 0.8rem; color: #64748b; margin-top: 0.2rem; }
+        .file-list { display: flex; flex-direction: column; gap: 0.8rem; }
+        .file-item {
+            background: #0f172a;
+            border-radius: 0.6rem;
+            padding: 0.8rem 1rem;
+        }
+        .file-name {
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: #60a5fa;
+            margin-bottom: 0.4rem;
+        }
+        .file-name::before { content: "📄 "; }
+        .func-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .func-tag {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.4rem;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            color: #a78bfa;
+        }
+        .func-tag.test { color: #34d399; border-color: #065f46; }
+        .card-meta {
+            margin-top: 1rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid #334155;
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding: 1.5rem;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            header h1 { font-size: 1.8rem; }
+            .team-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Mekong Cyberunit</h1>
+            <p>Team Project — Mekong University, Cambodia</p>
+            <span class="badge">5 members · Python 3.14</span>
+        </header>
+
+        <div class="team-grid" id="teamGrid"></div>
+
+        <footer>
+            Mekong Cyberunit &copy; 2026
+        </footer>
+    </div>
+
+    <script>
+        const teamData = [
+            {
+                name: "Chea Lida",
+                dir: "chea_lida",
+                color: "#60a5fa",
+                files: [
+                    { name: "member3.py", functions: ["greet(name)", "add(a, b)"] }
+                ]
+            },
+            {
+                name: "Chea Rotha",
+                dir: "chea_rotha",
+                color: "#f472b6",
+                files: [
+                    { name: "test.py", functions: ["greet(name)", "add(a, b)"] }
+                ]
+            },
+            {
+                name: "Doem Socheat",
+                dir: "doem_socheat",
+                color: "#34d399",
+                files: [
+                    { name: "test.py", functions: ["add(a, b)"], isTest: true },
+                    { name: "week1.py", functions: ["type conversion exercise"] }
+                ]
+            },
+            {
+                name: "Norn Samnang",
+                dir: "norn_samnang",
+                color: "#fbbf24",
+                files: [
+                    { name: "test.py", functions: ["add(a, b)"], isTest: true }
+                ]
+            },
+            {
+                name: "Set Sokraksa",
+                dir: "set_sokraksa",
+                color: "#a78bfa",
+                files: [
+                    { name: "test.py", functions: ["add(a, b)"], isTest: true }
+                ]
+            }
+        ];
+
+        function getInitials(name) {
+            return name.split(' ').map(w => w[0]).join('');
+        }
+
+        function renderCards() {
+            const grid = document.getElementById('teamGrid');
+            grid.innerHTML = teamData.map(member => {
+                const initials = getInitials(member.name);
+                const filesHtml = member.files.map(f => {
+                    const funcsHtml = f.functions.map(fn =>
+                        `<span class="func-tag${f.isTest ? ' test' : ''}">${fn}</span>`
+                    ).join('');
+                    return `
+                        <div class="file-item">
+                            <div class="file-name">${f.name}</div>
+                            <div class="func-list">${funcsHtml}</div>
+                        </div>
+                    `;
+                }).join('');
+                return `
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="avatar" style="background: ${member.color}22; color: ${member.color}; border: 2px solid ${member.color}">
+                                ${initials}
+                            </div>
+                            <div>
+                                <h2>${member.name}</h2>
+                                <div class="dir">${member.dir}/</div>
+                            </div>
+                        </div>
+                        <div class="file-list">${filesHtml}</div>
+                        <div class="card-meta">
+                            ${member.files.length} file${member.files.length > 1 ? 's' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        renderCards();
+    </script>
+</body>
+</html>
