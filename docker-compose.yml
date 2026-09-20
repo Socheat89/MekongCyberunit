@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: socheat29/backend:latest
+    container_name: is405_backend
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - DatabaseProvider=Sqlite
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/is405.db
+    ports:
+      - "5000:5000"
+      - "5230:5000"
+    volumes:
+      - backend_data:/app/data
+    networks:
+      - is405_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: socheat29/frontend:latest
+    container_name: is405_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "4200:80"
+    depends_on:
+      - backend
+    networks:
+      - is405_network
+
+volumes:
+  backend_data:
+    name: is405_sqlite_data
+
+networks:
+  is405_network:
+    name: is405_network
+    driver: bridge
