@@ -446,10 +446,13 @@ public class StockController : ControllerBase
             .ToListAsync(cancellationToken);
 
         var today = DateTimeOffset.UtcNow.Date;
-        var todayMovements = await _context.StockMovements
-            .Where(m => m.CreatedAtUtc >= today)
+        var movements = await _context.StockMovements
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+
+        var todayMovements = movements
+            .Where(m => m.CreatedAtUtc >= today)
+            .ToList();
 
         var totalItems = items.Count;
         var totalQuantity = items.Sum(i => i.QuantityOnHand);

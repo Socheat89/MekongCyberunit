@@ -8,66 +8,98 @@ public static class DbSeeder
 {
     public static async Task SeedAsync(AppDbContext context)
     {
-        await context.Database.EnsureCreatedAsync();
+        if (context.Database.ProviderName?.Contains("Oracle", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            try
+            {
+                await context.Database.EnsureCreatedAsync();
+            }
+            catch (Exception ex) when (ex.Message.Contains("ORA-00955") || ex.Message.Contains("already used"))
+            {
+                var tables = new[] {
+                    "StockMovements", "StockItems", "StockCategories",
+                    "UserPermissions", "UserRoles", "RolePermissions",
+                    "Permissions", "Pages", "Roles", "Users"
+                };
+
+                foreach (var table in tables)
+                {
+                    try
+                    {
+                        await context.Database.ExecuteSqlRawAsync($"BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"{table}\" CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+                    }
+                    catch { }
+                }
+
+                await context.Database.EnsureCreatedAsync();
+            }
+        }
+        else
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
 
         // Ensure UserPermissions and Stock tables exist in SQLite DB if upgraded from older schema
-        await context.Database.ExecuteSqlRawAsync(@"
-            CREATE TABLE IF NOT EXISTS ""UserPermissions"" (
-                ""UserId"" INTEGER NOT NULL,
-                ""PermissionId"" INTEGER NOT NULL,
-                ""AssignedAtUtc"" TEXT NOT NULL,
-                ""AssignedBy"" INTEGER NULL,
-                PRIMARY KEY (""UserId"", ""PermissionId""),
-                CONSTRAINT ""FK_UserPermissions_Users_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""Users"" (""Id"") ON DELETE CASCADE,
-                CONSTRAINT ""FK_UserPermissions_Permissions_PermissionId"" FOREIGN KEY (""PermissionId"") REFERENCES ""Permissions"" (""Id"") ON DELETE CASCADE
-            );
+        if (context.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ""UserPermissions"" (
+                    ""UserId"" INTEGER NOT NULL,
+                    ""PermissionId"" INTEGER NOT NULL,
+                    ""AssignedAtUtc"" TEXT NOT NULL,
+                    ""AssignedBy"" INTEGER NULL,
+                    PRIMARY KEY (""UserId"", ""PermissionId""),
+                    CONSTRAINT ""FK_UserPermissions_Users_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""Users"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_UserPermissions_Permissions_PermissionId"" FOREIGN KEY (""PermissionId"") REFERENCES ""Permissions"" (""Id"") ON DELETE CASCADE
+                );
 
-            CREATE TABLE IF NOT EXISTS ""StockCategories"" (
-                ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                ""Name"" TEXT NOT NULL,
-                ""Description"" TEXT NULL,
-                ""IsActive"" INTEGER NOT NULL DEFAULT 1,
-                ""CreatedAtUtc"" TEXT NOT NULL
-            );
+                CREATE TABLE IF NOT EXISTS ""StockCategories"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""Name"" TEXT NOT NULL,
+                    ""Description"" TEXT NULL,
+                    ""IsActive"" INTEGER NOT NULL DEFAULT 1,
+                    ""CreatedAtUtc"" TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS ""StockItems"" (
-                ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                ""Sku"" TEXT NOT NULL,
-                ""Barcode"" TEXT NULL,
-                ""Name"" TEXT NOT NULL,
-                ""Description"" TEXT NULL,
-                ""CategoryId"" INTEGER NULL,
-                ""Unit"" TEXT NOT NULL DEFAULT 'PCS',
-                ""CostPrice"" TEXT NOT NULL DEFAULT '0',
-                ""SellingPrice"" TEXT NOT NULL DEFAULT '0',
-                ""QuantityOnHand"" INTEGER NOT NULL DEFAULT 0,
-                ""MinStockLevel"" INTEGER NOT NULL DEFAULT 10,
-                ""Location"" TEXT NULL,
-                ""IsActive"" INTEGER NOT NULL DEFAULT 1,
-                ""CreatedAtUtc"" TEXT NOT NULL,
-                ""UpdatedAtUtc"" TEXT NULL,
-                CONSTRAINT ""FK_StockItems_StockCategories_CategoryId"" FOREIGN KEY (""CategoryId"") REFERENCES ""StockCategories"" (""Id"") ON DELETE SET NULL
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS ""IX_StockItems_Sku"" ON ""StockItems"" (""Sku"");
+                CREATE TABLE IF NOT EXISTS ""StockItems"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""Sku"" TEXT NOT NULL,
+                    ""Barcode"" TEXT NULL,
+                    ""Name"" TEXT NOT NULL,
+                    ""Description"" TEXT NULL,
+                    ""CategoryId"" INTEGER NULL,
+                    ""Unit"" TEXT NOT NULL DEFAULT 'PCS',
+                    ""CostPrice"" TEXT NOT NULL DEFAULT '0',
+                    ""SellingPrice"" TEXT NOT NULL DEFAULT '0',
+                    ""QuantityOnHand"" INTEGER NOT NULL DEFAULT 0,
+                    ""MinStockLevel"" INTEGER NOT NULL DEFAULT 10,
+                    ""Location"" TEXT NULL,
+                    ""IsActive"" INTEGER NOT NULL DEFAULT 1,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    ""UpdatedAtUtc"" TEXT NULL,
+                    CONSTRAINT ""FK_StockItems_StockCategories_CategoryId"" FOREIGN KEY (""CategoryId"") REFERENCES ""StockCategories"" (""Id"") ON DELETE SET NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_StockItems_Sku"" ON ""StockItems"" (""Sku"");
 
-            CREATE TABLE IF NOT EXISTS ""StockMovements"" (
-                ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                ""ReferenceNo"" TEXT NOT NULL,
-                ""MovementType"" TEXT NOT NULL,
-                ""ItemId"" INTEGER NOT NULL,
-                ""Quantity"" INTEGER NOT NULL,
-                ""UnitPrice"" TEXT NOT NULL DEFAULT '0',
-                ""BalanceBefore"" INTEGER NOT NULL,
-                ""BalanceAfter"" INTEGER NOT NULL,
-                ""Reason"" TEXT NULL,
-                ""SupplierOrRecipient"" TEXT NULL,
-                ""Notes"" TEXT NULL,
-                ""CreatedByUserId"" INTEGER NULL,
-                ""CreatedByUsername"" TEXT NULL,
-                ""CreatedAtUtc"" TEXT NOT NULL,
-                CONSTRAINT ""FK_StockMovements_StockItems_ItemId"" FOREIGN KEY (""ItemId"") REFERENCES ""StockItems"" (""Id"") ON DELETE CASCADE
-            );
-        ");
+                CREATE TABLE IF NOT EXISTS ""StockMovements"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""ReferenceNo"" TEXT NOT NULL,
+                    ""MovementType"" TEXT NOT NULL,
+                    ""ItemId"" INTEGER NOT NULL,
+                    ""Quantity"" INTEGER NOT NULL,
+                    ""UnitPrice"" TEXT NOT NULL DEFAULT '0',
+                    ""BalanceBefore"" INTEGER NOT NULL,
+                    ""BalanceAfter"" INTEGER NOT NULL,
+                    ""Reason"" TEXT NULL,
+                    ""SupplierOrRecipient"" TEXT NULL,
+                    ""Notes"" TEXT NULL,
+                    ""CreatedByUserId"" INTEGER NULL,
+                    ""CreatedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_StockMovements_StockItems_ItemId"" FOREIGN KEY (""ItemId"") REFERENCES ""StockItems"" (""Id"") ON DELETE CASCADE
+                );
+            ");
+        }
 
         var passwordHasher = new PasswordHasher<AppUser>();
 
@@ -266,7 +298,7 @@ public static class DbSeeder
         foreach (var perm in seededPerms)
         {
             // ADMIN gets all permissions
-            if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == adminRole.Id && rp.PermissionId == perm.Id))
+            if (await context.RolePermissions.FirstOrDefaultAsync(rp => rp.RoleId == adminRole.Id && rp.PermissionId == perm.Id) == null)
             {
                 context.RolePermissions.Add(new AppRolePermission
                 {
@@ -281,7 +313,7 @@ public static class DbSeeder
             if (perm.Code is "dashboard.view" or "units.view" or "units.create" or "settings.view"
                 || perm.Code.StartsWith("stock"))
             {
-                if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == managerRole.Id && rp.PermissionId == perm.Id))
+                if (await context.RolePermissions.FirstOrDefaultAsync(rp => rp.RoleId == managerRole.Id && rp.PermissionId == perm.Id) == null)
                 {
                     context.RolePermissions.Add(new AppRolePermission
                     {
@@ -296,7 +328,7 @@ public static class DbSeeder
             // SUPPORT gets dashboard view, units view, and stock read-only views
             if (perm.Code is "dashboard.view" or "units.view" or "stock.view" or "stock-items.view" or "stock-movements.view" or "stock-alerts.view")
             {
-                if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == supportRole.Id && rp.PermissionId == perm.Id))
+                if (await context.RolePermissions.FirstOrDefaultAsync(rp => rp.RoleId == supportRole.Id && rp.PermissionId == perm.Id) == null)
                 {
                     context.RolePermissions.Add(new AppRolePermission
                     {
@@ -311,7 +343,7 @@ public static class DbSeeder
         await context.SaveChangesAsync();
 
         // 6. Seed Sample Categories and Stock Items if empty
-        if (!await context.StockCategories.AnyAsync())
+        if (await context.StockCategories.FirstOrDefaultAsync() == null)
         {
             var categories = new List<StockCategory>
             {
@@ -325,7 +357,7 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        if (!await context.StockItems.AnyAsync())
+        if (await context.StockItems.FirstOrDefaultAsync() == null)
         {
             var catBeverage = await context.StockCategories.FirstOrDefaultAsync(c => c.Name == "Beverages & Liquids");
             var catPackaging = await context.StockCategories.FirstOrDefaultAsync(c => c.Name == "Packaging & Boxes");

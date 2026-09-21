@@ -158,6 +158,22 @@ public class AppDbContext : DbContext
                   .HasForeignKey(m => m.ItemId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
+
+        if (Database.ProviderName?.Contains("Oracle", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var boolConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.BoolToZeroOneConverter<int>();
+
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(bool) || property.ClrType == typeof(bool?))
+                    {
+                        property.SetValueConverter(boolConverter);
+                    }
+                }
+            }
+        }
     }
 }
 
