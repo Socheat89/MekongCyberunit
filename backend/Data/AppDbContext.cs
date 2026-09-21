@@ -14,7 +14,11 @@ public class AppDbContext : DbContext
     public DbSet<AppPermission> Permissions => Set<AppPermission>();
     public DbSet<AppRolePermission> RolePermissions => Set<AppRolePermission>();
     public DbSet<AppUserRole> UserRoles => Set<AppUserRole>();
+    public DbSet<AppUserPermission> UserPermissions => Set<AppUserPermission>();
     public DbSet<AppPage> Pages => Set<AppPage>();
+    public DbSet<StockCategory> StockCategories => Set<StockCategory>();
+    public DbSet<StockItem> StockItems => Set<StockItem>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -99,5 +103,61 @@ public class AppDbContext : DbContext
                   .WithMany(r => r.UserRoles)
                   .HasForeignKey(ur => ur.RoleId);
         });
+
+        // AppUserPermission
+        modelBuilder.Entity<AppUserPermission>(entity =>
+        {
+            entity.HasKey(up => new { up.UserId, up.PermissionId });
+
+            entity.HasOne(up => up.User)
+                  .WithMany(u => u.UserPermissions)
+                  .HasForeignKey(up => up.UserId);
+
+            entity.HasOne(up => up.Permission)
+                  .WithMany(p => p.UserPermissions)
+                  .HasForeignKey(up => up.PermissionId);
+        });
+
+        // StockCategory
+        modelBuilder.Entity<StockCategory>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Name).HasMaxLength(100);
+            entity.Property(c => c.Description).HasMaxLength(250);
+        });
+
+        // StockItem
+        modelBuilder.Entity<StockItem>(entity =>
+        {
+            entity.HasKey(i => i.Id);
+            entity.HasIndex(i => i.Sku).IsUnique();
+            entity.Property(i => i.Sku).HasMaxLength(50);
+            entity.Property(i => i.Name).HasMaxLength(200);
+            entity.Property(i => i.Unit).HasMaxLength(20);
+            entity.Property(i => i.CostPrice).HasPrecision(18, 2);
+            entity.Property(i => i.SellingPrice).HasPrecision(18, 2);
+
+            entity.HasOne(i => i.Category)
+                  .WithMany(c => c.Items)
+                  .HasForeignKey(i => i.CategoryId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // StockMovement
+        modelBuilder.Entity<StockMovement>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.ReferenceNo).HasMaxLength(50);
+            entity.Property(m => m.MovementType).HasMaxLength(20);
+            entity.Property(m => m.UnitPrice).HasPrecision(18, 2);
+            entity.Property(m => m.Reason).HasMaxLength(200);
+            entity.Property(m => m.SupplierOrRecipient).HasMaxLength(200);
+
+            entity.HasOne(m => m.Item)
+                  .WithMany(i => i.Movements)
+                  .HasForeignKey(m => m.ItemId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }
+

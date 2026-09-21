@@ -7,7 +7,8 @@ import {
   RolePageResponse,
   RoleResponse,
   CreateRoleRequest,
-  UpdateRoleRequest
+  UpdateRoleRequest,
+  UpdateRolePermissionsRequest
 } from '../models/role-permission.models';
 
 @Injectable({
@@ -38,5 +39,14 @@ export class RolesService {
 
   updateRole(id: number, req: UpdateRoleRequest): Observable<RoleResponse> {
     return this.http.put<RoleResponse>(`${this.apiUrl}/${id}`, req);
+  }
+
+  getRolePermissions(roleId: number): Observable<number[]> {
+    return this.http.get<number[]>(`${this.apiUrl}/${roleId}/permissions`);
+  }
+
+  updateRolePermissions(roleId: number, permissionIds: number[]): Observable<RoleResponse> {
+    const req: UpdateRolePermissionsRequest = { permissionIds };
+    return this.http.put<RoleResponse>(`${this.apiUrl}/${roleId}/permissions`, req);
   }
 }

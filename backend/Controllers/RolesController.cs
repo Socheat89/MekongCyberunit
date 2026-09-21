@@ -95,6 +95,40 @@ public class RolesController : ControllerBase
         return Ok(result.Value);
     }
 
+    [HttpGet("{id:int}/permissions")]
+    [ProducesResponseType(typeof(IReadOnlyList<int>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetPermissions(int id, CancellationToken cancellationToken)
+    {
+        var permissionIds = await _roleService.GetRolePermissionsAsync(id, cancellationToken);
+        return Ok(permissionIds);
+    }
+
+    [HttpPut("{id:int}/permissions")]
+    [ProducesResponseType(typeof(RoleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdatePermissions(
+        int id,
+        [FromBody] UpdateRolePermissionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var actorUserId = GetCurrentUserId();
+        if (actorUserId == null)
+        {
+            return Unauthorized(new { message = "Missing or invalid access token" });
+        }
+
+        var result = await _roleService.UpdatePermissionsAsync(id, request.PermissionIds, actorUserId.Value, cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            return StatusCode(result.StatusCode, new { message = result.Message });
+        }
+
+        return Ok(result.Value);
+    }
+
     private int? GetCurrentUserId()
     {
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value

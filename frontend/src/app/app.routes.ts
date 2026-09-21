@@ -12,6 +12,12 @@ import { RoleList } from './roles/roles';
 import { PermissionList } from './permissions/permissions';
 import { Profile } from './profile/profile';
 import { UserList } from './users/users';
+import { StockItemsComponent } from './stock/stock-items/stock-items';
+import { StockInComponent } from './stock/stock-in/stock-in';
+import { StockOutComponent } from './stock/stock-out/stock-out';
+import { StockAdjustmentsComponent } from './stock/stock-adjustments/stock-adjustments';
+import { StockMovementsComponent } from './stock/stock-movements/stock-movements';
+import { StockAlertsComponent } from './stock/stock-alerts/stock-alerts';
 
 export const routes: Routes = [
   // Public Authentication Routes
@@ -47,7 +53,9 @@ export const routes: Routes = [
       },
       {
         path: 'users',
-        component: UserList
+        component: UserList,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'users' }
       },
       {
         path: 'units',
@@ -57,15 +65,60 @@ export const routes: Routes = [
       },
       {
         path: 'roles',
-        component: RoleList
+        component: RoleList,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'roles' }
       },
       {
         path: 'permissions',
-        component: PermissionList
+        component: PermissionList,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'permissions' }
       },
       {
         path: 'profile',
         component: Profile
+      },
+      {
+        path: 'stock',
+        redirectTo: 'stock/items',
+        pathMatch: 'full'
+      },
+      {
+        path: 'stock/items',
+        component: StockItemsComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-items' }
+      },
+      {
+        path: 'stock/in',
+        component: StockInComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-in' }
+      },
+      {
+        path: 'stock/out',
+        component: StockOutComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-out' }
+      },
+      {
+        path: 'stock/adjustments',
+        component: StockAdjustmentsComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-adjustments' }
+      },
+      {
+        path: 'stock/movements',
+        component: StockMovementsComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-movements' }
+      },
+      {
+        path: 'stock/alerts',
+        component: StockAlertsComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-alerts' }
       },
       {
         path: '',

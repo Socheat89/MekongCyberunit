@@ -14,6 +14,8 @@ public record UserDto(
     string Email,
     IReadOnlyList<string> Roles,
     IReadOnlyList<int> RoleIds,
+    IReadOnlyList<int> DirectPermissionIds,
+    IReadOnlyList<string> EffectivePermissions,
     bool IsActive,
     DateTimeOffset CreatedAtUtc);
 
@@ -23,11 +25,13 @@ public class CreateUserWithRolesRequest
     public required string Email { get; set; }
     public required string Password { get; set; }
     public List<int> RoleIds { get; set; } = [];
+    public List<int> DirectPermissionIds { get; set; } = [];
 }
 
 public class UpdateUserRolesRequest
 {
     public List<int> RoleIds { get; set; } = [];
+    public List<int> DirectPermissionIds { get; set; } = [];
 }
 
 [ApiController]
@@ -50,17 +54,25 @@ public class UsersController : ControllerBase
         var users = await _context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
+            .Include(u => u.UserPermissions)
+            .ThenInclude(up => up.Permission)
             .OrderBy(u => u.Id)
             .ToListAsync(cancellationToken);
 
-        var result = users.Select(u => new UserDto(
-            u.Id,
-            u.Username,
-            u.Email,
-            u.UserRoles.Select(ur => ur.Role.Name).ToList(),
-            u.UserRoles.Select(ur => ur.RoleId).ToList(),
-            u.IsActive,
-            u.CreatedAtUtc)).ToList();
+        var allPermissions = await _context.Permissions
+            .Where(p => p.IsActive)
+            .ToListAsync(cancellationToken);
+
+        var allRolePermissions = await _context.RolePermissions
+            .Include(rp => rp.Permission)
+            .ToListAsync(cancellationToken);
+
+        var result = new List<UserDto>();
+        foreach (var user in users)
+        {
+            var dto = MapToUserDto(user, allPermissions, allRolePermissions);
+            result.Add(dto);
+        }
 
         return Ok(result);
     }
@@ -124,25 +136,32 @@ public class UsersController : ControllerBase
                     AssignedBy = actorUserId
                 });
             }
-            await _context.SaveChangesAsync(cancellationToken);
         }
 
-        // Return user with roles
-        var createdUser = await _context.Users
-            .Include(u => u.UserRoles)
-            .ThenInclude(ur => ur.Role)
-            .FirstAsync(u => u.Id == user.Id, cancellationToken);
+        // Assign direct permissions
+        if (request.DirectPermissionIds.Count > 0)
+        {
+            var validPermIds = await _context.Permissions
+                .Where(p => request.DirectPermissionIds.Contains(p.Id) && p.IsActive)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
 
-        var dto = new UserDto(
-            createdUser.Id,
-            createdUser.Username,
-            createdUser.Email,
-            createdUser.UserRoles.Select(ur => ur.Role.Name).ToList(),
-            createdUser.UserRoles.Select(ur => ur.RoleId).ToList(),
-            createdUser.IsActive,
-            createdUser.CreatedAtUtc);
+            foreach (var permId in validPermIds)
+            {
+                _context.UserPermissions.Add(new AppUserPermission
+                {
+                    UserId = user.Id,
+                    PermissionId = permId,
+                    AssignedAtUtc = DateTimeOffset.UtcNow,
+                    AssignedBy = actorUserId
+                });
+            }
+        }
 
-        return StatusCode(StatusCodes.Status201Created, dto);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var createdUser = await GetUserByIdWithDetailsAsync(user.Id, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, createdUser);
     }
 
     [HttpPut("{id:int}/roles")]
@@ -155,6 +174,7 @@ public class UsersController : ControllerBase
     {
         var user = await _context.Users
             .Include(u => u.UserRoles)
+            .Include(u => u.UserPermissions)
             .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
 
         if (user == null)
@@ -164,10 +184,9 @@ public class UsersController : ControllerBase
 
         var actorUserId = GetCurrentUserId() ?? 1;
 
-        // Remove existing roles
+        // Update roles
         _context.UserRoles.RemoveRange(user.UserRoles);
 
-        // Add new roles
         var validRoleIds = await _context.Roles
             .Where(r => request.RoleIds.Contains(r.Id) && r.IsActive)
             .Select(r => r.Id)
@@ -184,23 +203,32 @@ public class UsersController : ControllerBase
             });
         }
 
+        // Update direct permissions
+        _context.UserPermissions.RemoveRange(user.UserPermissions);
+
+        if (request.DirectPermissionIds.Count > 0)
+        {
+            var validPermIds = await _context.Permissions
+                .Where(p => request.DirectPermissionIds.Contains(p.Id) && p.IsActive)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var permId in validPermIds)
+            {
+                _context.UserPermissions.Add(new AppUserPermission
+                {
+                    UserId = user.Id,
+                    PermissionId = permId,
+                    AssignedAtUtc = DateTimeOffset.UtcNow,
+                    AssignedBy = actorUserId
+                });
+            }
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
 
-        var updatedUser = await _context.Users
-            .Include(u => u.UserRoles)
-            .ThenInclude(ur => ur.Role)
-            .FirstAsync(u => u.Id == id, cancellationToken);
-
-        var dto = new UserDto(
-            updatedUser.Id,
-            updatedUser.Username,
-            updatedUser.Email,
-            updatedUser.UserRoles.Select(ur => ur.Role.Name).ToList(),
-            updatedUser.UserRoles.Select(ur => ur.RoleId).ToList(),
-            updatedUser.IsActive,
-            updatedUser.CreatedAtUtc);
-
-        return Ok(dto);
+        var updatedUser = await GetUserByIdWithDetailsAsync(id, cancellationToken);
+        return Ok(updatedUser);
     }
 
     [HttpPut("{id:int}/status")]
@@ -208,11 +236,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ToggleStatus(int id, CancellationToken cancellationToken)
     {
-        var user = await _context.Users
-            .Include(u => u.UserRoles)
-            .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
-
+        var user = await _context.Users.FindAsync([id], cancellationToken);
         if (user == null)
         {
             return NotFound(new { message = "User not found." });
@@ -222,16 +246,88 @@ public class UsersController : ControllerBase
         user.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        var dto = new UserDto(
+        var dto = await GetUserByIdWithDetailsAsync(id, cancellationToken);
+        return Ok(dto);
+    }
+
+    private async Task<UserDto> GetUserByIdWithDetailsAsync(int userId, CancellationToken cancellationToken)
+    {
+        var user = await _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .Include(u => u.UserPermissions)
+            .ThenInclude(up => up.Permission)
+            .FirstAsync(u => u.Id == userId, cancellationToken);
+
+        var allPermissions = await _context.Permissions
+            .Where(p => p.IsActive)
+            .ToListAsync(cancellationToken);
+
+        var allRolePermissions = await _context.RolePermissions
+            .Include(rp => rp.Permission)
+            .ToListAsync(cancellationToken);
+
+        return MapToUserDto(user, allPermissions, allRolePermissions);
+    }
+
+    private static UserDto MapToUserDto(
+        AppUser user,
+        List<AppPermission> allPermissions,
+        List<AppRolePermission> allRolePermissions)
+    {
+        var activeUserRoles = user.UserRoles?
+            .Where(ur => ur.Role != null && ur.Role.IsActive)
+            .ToList() ?? [];
+
+        var roles = activeUserRoles
+            .Select(ur => ur.Role.Name)
+            .ToList();
+
+        var roleIds = activeUserRoles
+            .Select(ur => ur.RoleId)
+            .ToList();
+
+        var activeUserPermissions = user.UserPermissions?
+            .Where(up => up.Permission != null && up.Permission.IsActive)
+            .ToList() ?? [];
+
+        var directPermIds = activeUserPermissions
+            .Select(up => up.PermissionId)
+            .ToList();
+
+        var isAdmin = activeUserRoles.Any(ur => ur.Role.Code.Equals("ADMIN", StringComparison.OrdinalIgnoreCase));
+
+        List<string> effectivePermCodes;
+        if (isAdmin)
+        {
+            effectivePermCodes = allPermissions
+                .Where(p => p != null && p.IsActive)
+                .Select(p => p.Code)
+                .Distinct()
+                .ToList();
+        }
+        else
+        {
+            var permCodesFromRoles = allRolePermissions
+                .Where(rp => roleIds.Contains(rp.RoleId) && rp.Permission != null && rp.Permission.IsActive)
+                .Select(rp => rp.Permission.Code);
+
+            var permCodesFromDirect = activeUserPermissions
+                .Select(up => up.Permission.Code);
+
+            effectivePermCodes = permCodesFromRoles.Concat(permCodesFromDirect).Distinct().ToList();
+        }
+
+        return new UserDto(
             user.Id,
             user.Username,
             user.Email,
-            user.UserRoles.Select(ur => ur.Role.Name).ToList(),
-            user.UserRoles.Select(ur => ur.RoleId).ToList(),
+            roles,
+            roleIds,
+            directPermIds,
+            effectivePermCodes,
             user.IsActive,
             user.CreatedAtUtc);
-
-        return Ok(dto);
     }
 
     private int? GetCurrentUserId()

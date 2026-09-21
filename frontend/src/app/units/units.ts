@@ -1,6 +1,8 @@
-import { Component, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { PermissionsService } from '../services/permissions.service';
+import { AuthService } from '../login/auth.service';
 
 export interface UnitItem {
   id: number;
@@ -31,16 +33,18 @@ export interface UnitItem {
           </p>
         </div>
 
-        <button
-          type="button"
-          (click)="openModal()"
-          class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition hover:scale-[1.02] active:scale-[0.98] inline-flex items-center space-x-2"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-          </svg>
-          <span>Add New Unit</span>
-        </button>
+        @if (canCreate()) {
+          <button
+            type="button"
+            (click)="openModal()"
+            class="px-4 py-2.5 rounded-xl bg-white hover:bg-indigo-600 text-indigo-700 hover:text-white border-2 border-indigo-600 text-xs font-bold shadow-sm transition hover:scale-[1.02] active:scale-[0.98] inline-flex items-center space-x-2"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span>Add New Unit</span>
+          </button>
+        }
       </div>
 
       <!-- Overview Metric Pills -->
@@ -142,7 +146,9 @@ export interface UnitItem {
                 <th class="px-6 py-4">Symbol</th>
                 <th class="px-6 py-4">Category</th>
                 <th class="px-6 py-4">Status</th>
-                <th class="px-6 py-4 text-right">Actions</th>
+                @if (canEdit() || canDelete()) {
+                  <th class="px-6 py-4 text-right">Actions</th>
+                }
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -191,21 +197,34 @@ export interface UnitItem {
                       </span>
                     }
                   </td>
-                  <td class="px-6 py-4 text-right">
-                    <button
-                      type="button"
-                      (click)="toggleStatus(unit)"
-                      [class.text-rose-600]="unit.isActive"
-                      [class.text-emerald-600]="!unit.isActive"
-                      class="text-xs font-bold transition px-2.5 py-1 rounded-lg hover:bg-slate-100"
-                    >
-                      {{ unit.isActive ? 'Deactivate' : 'Activate' }}
-                    </button>
-                  </td>
+                  @if (canEdit() || canDelete()) {
+                    <td class="px-6 py-4 text-right flex items-center justify-end space-x-2">
+                      @if (canEdit()) {
+                        <button
+                          type="button"
+                          (click)="openEditModal(unit)"
+                          class="text-xs font-bold transition px-2.5 py-1 rounded-lg text-indigo-600 hover:bg-indigo-50"
+                        >
+                          Edit
+                        </button>
+                      }
+                      @if (canDelete()) {
+                        <button
+                          type="button"
+                          (click)="toggleStatus(unit)"
+                          [class.text-rose-600]="unit.isActive"
+                          [class.text-emerald-600]="!unit.isActive"
+                          class="text-xs font-bold transition px-2.5 py-1 rounded-lg hover:bg-slate-100"
+                        >
+                          {{ unit.isActive ? 'Deactivate' : 'Activate' }}
+                        </button>
+                      }
+                    </td>
+                  }
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="6" class="px-6 py-10 text-center text-slate-400">
+                  <td [attr.colspan]="(canEdit() || canDelete()) ? 6 : 5" class="px-6 py-10 text-center text-slate-400 font-medium">
                     No measurement units matching your criteria.
                   </td>
                 </tr>
@@ -215,49 +234,57 @@ export interface UnitItem {
         </div>
       </div>
 
-      <!-- Add Unit Modal -->
-      @if (showModal()) {
-        <div (click)="closeModal()" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay animate-fade-in">
-          <div (click)="$event.stopPropagation()" class="modal-card w-full max-w-md p-6  space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h2 class="text-base font-bold text-slate-900 font-sans">Add Measurement Unit</h2>
-              <button (click)="closeModal()" class="text-slate-400 hover:text-slate-700 transition">✕</button>
+      <!-- Add Unit Drawer -->
+      @if (showModal() && canCreate()) {
+        <div (click)="closeModal()" class="mk-drawer-overlay">
+          <div (click)="$event.stopPropagation()" class="mk-drawer">
+            <div class="mk-drawer-head">
+              <div class="flex items-center gap-3">
+                <div class="mk-modal-head-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="mk-modal-title">Add Measurement Unit</div>
+                  <div class="mk-modal-subtitle">Define a new unit for inventory tracking</div>
+                </div>
+              </div>
+              <button (click)="closeModal()" class="mk-close-btn">✕</button>
             </div>
 
-            <div class="space-y-3.5">
+            <div class="mk-drawer-body space-y-4">
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Unit Code</label>
+                <label class="mk-label"><span class="mk-label-dot"></span> Unit Code</label>
                 <input
                   type="text"
                   [(ngModel)]="newUnit.code"
                   placeholder="e.g. KG"
-                  class="glass-input w-full px-3.5 py-2 rounded-xl text-xs uppercase font-mono font-bold"
+                  class="mk-input mk-input--mono"
                 />
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Unit Name</label>
+                <label class="mk-label"><span class="mk-label-dot"></span> Unit Name</label>
                 <input
                   type="text"
                   [(ngModel)]="newUnit.name"
                   placeholder="e.g. Kilogram"
-                  class="glass-input w-full px-3.5 py-2 rounded-xl text-xs font-medium"
+                  class="mk-input"
                 />
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Display Symbol</label>
+                <label class="mk-label"><span class="mk-label-dot"></span> Display Symbol</label>
                 <input
                   type="text"
                   [(ngModel)]="newUnit.symbol"
                   placeholder="e.g. kg"
-                  class="glass-input w-full px-3.5 py-2 rounded-xl text-xs font-mono"
+                  class="mk-input"
+                  style="font-family:var(--font-mono);"
                 />
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Category</label>
-                <select
-                  [(ngModel)]="newUnit.category"
-                  class="glass-input w-full px-3.5 py-2 rounded-xl text-xs bg-white border border-slate-300 font-medium"
-                >
+                <label class="mk-label"><span class="mk-label-dot"></span> Category</label>
+                <select [(ngModel)]="newUnit.category" class="mk-select">
                   <option value="Weight">Weight</option>
                   <option value="Volume">Volume</option>
                   <option value="Packaging">Packaging</option>
@@ -266,21 +293,95 @@ export interface UnitItem {
               </div>
             </div>
 
-            <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200">
-              <button
-                type="button"
-                (click)="closeModal()"
-                class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition"
-              >
-                Cancel
-              </button>
+            <div class="mk-drawer-footer">
+              <button type="button" (click)="closeModal()" class="mk-btn-cancel">Cancel</button>
               <button
                 type="button"
                 (click)="saveUnit()"
                 [disabled]="!newUnit.code || !newUnit.name"
-                class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition disabled:opacity-50"
+                class="mk-btn-primary"
               >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
                 Save Unit
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Edit Unit Drawer -->
+      @if (showEditModal() && canEdit()) {
+        <div (click)="closeEditModal()" class="mk-drawer-overlay">
+          <div (click)="$event.stopPropagation()" class="mk-drawer">
+            <div class="mk-drawer-head">
+              <div class="flex items-center gap-3">
+                <div class="mk-modal-head-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="mk-modal-title">Edit Measurement Unit</div>
+                  <div class="mk-modal-subtitle">Update unit details and category</div>
+                </div>
+              </div>
+              <button (click)="closeEditModal()" class="mk-close-btn">✕</button>
+            </div>
+
+            <div class="mk-drawer-body space-y-4">
+              <div>
+                <label class="mk-label"><span class="mk-label-dot"></span> Unit Code</label>
+                <input
+                  type="text"
+                  [(ngModel)]="editingUnit.code"
+                  placeholder="e.g. KG"
+                  class="mk-input mk-input--mono"
+                />
+              </div>
+              <div>
+                <label class="mk-label"><span class="mk-label-dot"></span> Unit Name</label>
+                <input
+                  type="text"
+                  [(ngModel)]="editingUnit.name"
+                  placeholder="e.g. Kilogram"
+                  class="mk-input"
+                />
+              </div>
+              <div>
+                <label class="mk-label"><span class="mk-label-dot"></span> Display Symbol</label>
+                <input
+                  type="text"
+                  [(ngModel)]="editingUnit.symbol"
+                  placeholder="e.g. kg"
+                  class="mk-input"
+                  style="font-family:var(--font-mono);"
+                />
+              </div>
+              <div>
+                <label class="mk-label"><span class="mk-label-dot"></span> Category</label>
+                <select [(ngModel)]="editingUnit.category" class="mk-select">
+                  <option value="Weight">Weight</option>
+                  <option value="Volume">Volume</option>
+                  <option value="Packaging">Packaging</option>
+                  <option value="Length">Length</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mk-drawer-footer">
+              <button type="button" (click)="closeEditModal()" class="mk-btn-cancel">Cancel</button>
+              <button
+                type="button"
+                (click)="saveEditUnit()"
+                [disabled]="!editingUnit.code || !editingUnit.name"
+                class="mk-btn-primary"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+                Save Changes
               </button>
             </div>
           </div>
@@ -289,7 +390,12 @@ export interface UnitItem {
     </div>
   `
 })
-export class UnitList {
+export class UnitList implements OnInit {
+  private readonly permissionsService = inject(PermissionsService);
+  private readonly authService = inject(AuthService);
+
+  readonly userPermissions = signal<string[]>([]);
+
   readonly units = signal<UnitItem[]>([
     { id: 1, code: 'KG', name: 'Kilogram', symbol: 'kg', category: 'Weight', isActive: true },
     { id: 2, code: 'G', name: 'Gram', symbol: 'g', category: 'Weight', isActive: true },
@@ -305,6 +411,7 @@ export class UnitList {
   searchQuery = '';
   selectedCategory = 'ALL';
   showModal = signal<boolean>(false);
+  showEditModal = signal<boolean>(false);
 
   newUnit = {
     code: '',
@@ -312,6 +419,40 @@ export class UnitList {
     symbol: '',
     category: 'Weight'
   };
+
+  editingUnit: UnitItem = {
+    id: 0,
+    code: '',
+    name: '',
+    symbol: '',
+    category: 'Weight',
+    isActive: true
+  };
+
+  ngOnInit(): void {
+    this.permissionsService.getMyPermissions(true).subscribe({
+      next: codes => this.userPermissions.set(codes || []),
+      error: () => {}
+    });
+  }
+
+  isAdmin = computed(() => {
+    const user = this.authService.currentUser();
+    if (!user || !user.roles) return false;
+    return user.roles.some(r => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'ADMINISTRATOR');
+  });
+
+  canCreate = computed(() => {
+    return this.isAdmin() || this.userPermissions().includes('units.create');
+  });
+
+  canEdit = computed(() => {
+    return this.isAdmin() || this.userPermissions().includes('units.edit');
+  });
+
+  canDelete = computed(() => {
+    return this.isAdmin() || this.userPermissions().includes('units.delete');
+  });
 
   activeUnitsCount = computed(() => this.units().filter(u => u.isActive).length);
 
@@ -331,6 +472,7 @@ export class UnitList {
   }
 
   openModal(): void {
+    if (!this.canCreate()) return;
     this.newUnit = { code: '', name: '', symbol: '', category: 'Weight' };
     this.showModal.set(true);
   }
@@ -340,7 +482,7 @@ export class UnitList {
   }
 
   saveUnit(): void {
-    if (!this.newUnit.code || !this.newUnit.name) return;
+    if (!this.canCreate() || !this.newUnit.code || !this.newUnit.name) return;
     const newItem: UnitItem = {
       id: Date.now(),
       code: this.newUnit.code.toUpperCase(),
@@ -353,7 +495,28 @@ export class UnitList {
     this.closeModal();
   }
 
+  openEditModal(unit: UnitItem): void {
+    if (!this.canEdit()) return;
+    this.editingUnit = { ...unit };
+    this.showEditModal.set(true);
+  }
+
+  closeEditModal(): void {
+    this.showEditModal.set(false);
+  }
+
+  saveEditUnit(): void {
+    if (!this.canEdit() || !this.editingUnit.code || !this.editingUnit.name) return;
+    const updated = {
+      ...this.editingUnit,
+      code: this.editingUnit.code.toUpperCase()
+    };
+    this.units.update(list => list.map(u => (u.id === updated.id ? updated : u)));
+    this.closeEditModal();
+  }
+
   toggleStatus(unit: UnitItem): void {
+    if (!this.canDelete()) return;
     this.units.update(list =>
       list.map(u => (u.id === unit.id ? { ...u, isActive: !u.isActive } : u))
     );

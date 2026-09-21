@@ -13,6 +13,7 @@ public class CreateRoleRequest
     public required string Code { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
+    public List<int> PermissionIds { get; set; } = [];
 }
 
 public class UpdateRoleRequest
@@ -20,6 +21,12 @@ public class UpdateRoleRequest
     public required string Name { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; }
+    public List<int>? PermissionIds { get; set; }
+}
+
+public class UpdateRolePermissionsRequest
+{
+    public List<int> PermissionIds { get; set; } = [];
 }
 
 public record RoleResponse(
@@ -29,7 +36,8 @@ public record RoleResponse(
     string? Description,
     bool IsActive,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? UpdatedAtUtc);
+    DateTimeOffset? UpdatedAtUtc,
+    IReadOnlyList<int>? PermissionIds = null);
 
 public sealed record RolePageResponse(
     IReadOnlyList<RoleResponse> Items,

@@ -23,4 +23,14 @@ public interface IRoleService
         UpdateRoleRequest request,
         int actorUserId,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<int>> GetRolePermissionsAsync(
+        int roleId,
+        CancellationToken cancellationToken);
+
+    Task<RoleServiceResult<RoleResponse>> UpdatePermissionsAsync(
+        int roleId,
+        List<int> permissionIds,
+        int actorUserId,
+        CancellationToken cancellationToken);
 }

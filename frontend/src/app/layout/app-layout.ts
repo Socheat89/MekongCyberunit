@@ -15,11 +15,11 @@ import { AppHeader } from './app-header/app-header';
       @if (sidebarOpen()) {
         <div
           (click)="sidebarOpen.set(false)"
-          class="fixed inset-0 z-30 bg-slate-900/20 backdrop-blur-sm lg:hidden transition-opacity duration-200"
+          class="mekong-backdrop lg:hidden"
         ></div>
       }
 
-      <!-- Sidebar -->
+      <!-- Sidebar (always show on lg) -->
       <app-sidebar [isOpen]="sidebarOpen()"></app-sidebar>
 
       <!-- Main Shell Area -->
@@ -42,7 +42,7 @@ import { AppHeader } from './app-header/app-header';
 })
 export class AppLayout {
   readonly sidebarOpen = signal<boolean>(false);
-  readonly isRouteAnimating = signal<boolean>(true);
+  readonly isRouteAnimating = signal<boolean>(false);
 
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);

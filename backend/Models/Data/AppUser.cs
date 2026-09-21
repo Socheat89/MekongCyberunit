@@ -14,4 +14,6 @@ public class AppUser
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? UpdatedAtUtc { get; set; }
     public ICollection<AppUserRole> UserRoles { get; set; } = [];
+    public ICollection<AppUserPermission> UserPermissions { get; set; } = [];
 }
+

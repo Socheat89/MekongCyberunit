@@ -14,4 +14,6 @@ public class AppPermission
     public DateTimeOffset? UpdatedAtUtc { get; set; }
     public int? UpdatedBy { get; set; }
     public ICollection<AppRolePermission> RolePermissions { get; set; } = [];
+    public ICollection<AppUserPermission> UserPermissions { get; set; } = [];
 }
+

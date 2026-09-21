@@ -4,6 +4,8 @@ export interface UserDto {
   email: string;
   roles: string[];
   roleIds: number[];
+  directPermissionIds: number[];
+  effectivePermissions: string[];
   isActive: boolean;
   createdAtUtc: string;
 }
@@ -13,8 +15,10 @@ export interface CreateUserWithRolesRequest {
   email: string;
   password: string;
   roleIds: number[];
+  directPermissionIds?: number[];
 }
 
 export interface UpdateUserRolesRequest {
   roleIds: number[];
+  directPermissionIds?: number[];
 }

@@ -9,12 +9,18 @@ export interface CreateRoleRequest {
   code: string;
   name: string;
   description?: string;
+  permissionIds?: number[];
 }
 
 export interface UpdateRoleRequest {
   name: string;
   description?: string;
   isActive: boolean;
+  permissionIds?: number[];
+}
+
+export interface UpdateRolePermissionsRequest {
+  permissionIds: number[];
 }
 
 export interface RoleResponse {
@@ -25,6 +31,7 @@ export interface RoleResponse {
   isActive: boolean;
   createdAtUtc: string;
   updatedAtUtc?: string;
+  permissionIds?: number[];
 }
 
 export interface RolePageResponse {

@@ -51,19 +51,23 @@ public class RoleService : IRoleService
         var totalCount = await query.CountAsync(cancellationToken);
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
 
-        var items = await query
+        var rolesList = await query
+            .Include(r => r.RolePermissions)
             .OrderBy(r => r.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(r => new RoleResponse(
-                r.Id,
-                r.Code,
-                r.Name,
-                r.Description,
-                r.IsActive,
-                r.CreatedAtUtc,
-                r.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
+
+        var items = rolesList.Select(r => new RoleResponse(
+            r.Id,
+            r.Code,
+            r.Name,
+            r.Description,
+            r.IsActive,
+            r.CreatedAtUtc,
+            r.UpdatedAtUtc,
+            r.RolePermissions.Select(rp => rp.PermissionId).ToList()
+        )).ToList();
 
         return new RolePageResponse(
             Items: items,
@@ -77,7 +81,10 @@ public class RoleService : IRoleService
 
     public async Task<RoleResponse?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
-        var role = await _context.Roles.FindAsync([id], cancellationToken);
+        var role = await _context.Roles
+            .Include(r => r.RolePermissions)
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
         if (role == null)
         {
             return null;
@@ -90,7 +97,8 @@ public class RoleService : IRoleService
             role.Description,
             role.IsActive,
             role.CreatedAtUtc,
-            role.UpdatedAtUtc);
+            role.UpdatedAtUtc,
+            role.RolePermissions.Select(rp => rp.PermissionId).ToList());
     }
 
     public async Task<RoleServiceResult<RoleResponse>> CreateAsync(
@@ -133,16 +141,28 @@ public class RoleService : IRoleService
         _context.Roles.Add(role);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return RoleServiceResult<RoleResponse>.Success(
-            new RoleResponse(
-                role.Id,
-                role.Code,
-                role.Name,
-                role.Description,
-                role.IsActive,
-                role.CreatedAtUtc,
-                role.UpdatedAtUtc),
-            statusCode: 201);
+        if (request.PermissionIds.Count > 0)
+        {
+            var validPermIds = await _context.Permissions
+                .Where(p => request.PermissionIds.Contains(p.Id) && p.IsActive)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var permId in validPermIds)
+            {
+                _context.RolePermissions.Add(new AppRolePermission
+                {
+                    RoleId = role.Id,
+                    PermissionId = permId,
+                    AssignedAtUtc = DateTimeOffset.UtcNow,
+                    AssignedBy = actorUserId
+                });
+            }
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        var createdRole = await GetByIdAsync(role.Id, cancellationToken);
+        return RoleServiceResult<RoleResponse>.Success(createdRole!, statusCode: 201);
     }
 
     public async Task<RoleServiceResult<RoleResponse>> UpdateAsync(
@@ -161,7 +181,10 @@ public class RoleService : IRoleService
             return RoleServiceResult<RoleResponse>.BadRequest("Validation failed");
         }
 
-        var role = await _context.Roles.FindAsync([id], cancellationToken);
+        var role = await _context.Roles
+            .Include(r => r.RolePermissions)
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
         if (role == null)
         {
             return RoleServiceResult<RoleResponse>.NotFound("Role was not found");
@@ -173,17 +196,77 @@ public class RoleService : IRoleService
         role.UpdatedAtUtc = DateTimeOffset.UtcNow;
         role.UpdatedBy = actorUserId;
 
+        if (request.PermissionIds != null)
+        {
+            _context.RolePermissions.RemoveRange(role.RolePermissions);
+
+            var validPermIds = await _context.Permissions
+                .Where(p => request.PermissionIds.Contains(p.Id) && p.IsActive)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var permId in validPermIds)
+            {
+                _context.RolePermissions.Add(new AppRolePermission
+                {
+                    RoleId = role.Id,
+                    PermissionId = permId,
+                    AssignedAtUtc = DateTimeOffset.UtcNow,
+                    AssignedBy = actorUserId
+                });
+            }
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
 
-        return RoleServiceResult<RoleResponse>.Success(
-            new RoleResponse(
-                role.Id,
-                role.Code,
-                role.Name,
-                role.Description,
-                role.IsActive,
-                role.CreatedAtUtc,
-                role.UpdatedAtUtc),
-            statusCode: 200);
+        var updatedRole = await GetByIdAsync(role.Id, cancellationToken);
+        return RoleServiceResult<RoleResponse>.Success(updatedRole!, statusCode: 200);
+    }
+
+    public async Task<IReadOnlyList<int>> GetRolePermissionsAsync(int roleId, CancellationToken cancellationToken)
+    {
+        return await _context.RolePermissions
+            .Where(rp => rp.RoleId == roleId)
+            .Select(rp => rp.PermissionId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<RoleServiceResult<RoleResponse>> UpdatePermissionsAsync(
+        int roleId,
+        List<int> permissionIds,
+        int actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var role = await _context.Roles
+            .Include(r => r.RolePermissions)
+            .FirstOrDefaultAsync(r => r.Id == roleId, cancellationToken);
+
+        if (role == null)
+        {
+            return RoleServiceResult<RoleResponse>.NotFound("Role was not found");
+        }
+
+        _context.RolePermissions.RemoveRange(role.RolePermissions);
+
+        var validPermIds = await _context.Permissions
+            .Where(p => permissionIds.Contains(p.Id) && p.IsActive)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var permId in validPermIds)
+        {
+            _context.RolePermissions.Add(new AppRolePermission
+            {
+                RoleId = role.Id,
+                PermissionId = permId,
+                AssignedAtUtc = DateTimeOffset.UtcNow,
+                AssignedBy = actorUserId
+            });
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var updatedRole = await GetByIdAsync(role.Id, cancellationToken);
+        return RoleServiceResult<RoleResponse>.Success(updatedRole!, statusCode: 200);
     }
 }

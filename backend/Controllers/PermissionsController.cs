@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using backend.Data;
 using backend.Models.Request;
 using backend.Services.Permission;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers;
 
@@ -11,10 +13,12 @@ namespace backend.Controllers;
 public class PermissionsController : ControllerBase
 {
     private readonly IPermissionService _permissionService;
+    private readonly AppDbContext _context;
 
-    public PermissionsController(IPermissionService permissionService)
+    public PermissionsController(IPermissionService permissionService, AppDbContext context)
     {
         _permissionService = permissionService;
+        _context = context;
     }
 
     [HttpGet]
@@ -23,6 +27,53 @@ public class PermissionsController : ControllerBase
     {
         var permissions = await _permissionService.GetAllAsync(cancellationToken);
         return Ok(permissions);
+    }
+
+    [HttpGet("me")]
+    [Authorize("FullAuth")]
+    [ProducesResponseType(typeof(IReadOnlyList<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMyPermissions(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "Missing or invalid access token" });
+        }
+
+        var userRoles = await _context.UserRoles
+            .Where(ur => ur.UserId == userId.Value)
+            .Include(ur => ur.Role)
+            .ToListAsync(cancellationToken);
+
+        var isAdmin = userRoles.Any(ur => ur.Role != null && ur.Role.IsActive && ur.Role.Code.Equals("ADMIN", StringComparison.OrdinalIgnoreCase));
+        if (isAdmin)
+        {
+            var allPermCodes = await _context.Permissions
+                .Where(p => p.IsActive)
+                .Select(p => p.Code)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            return Ok(allPermCodes);
+        }
+
+        var roleIds = userRoles
+            .Where(ur => ur.Role != null && ur.Role.IsActive)
+            .Select(ur => ur.RoleId)
+            .ToList();
+
+        var permCodesFromRoles = await _context.RolePermissions
+            .Where(rp => roleIds.Contains(rp.RoleId) && rp.Permission != null && rp.Permission.IsActive)
+            .Select(rp => rp.Permission.Code)
+            .ToListAsync(cancellationToken);
+
+        var permCodesFromDirect = await _context.UserPermissions
+            .Where(up => up.UserId == userId.Value && up.Permission != null && up.Permission.IsActive)
+            .Select(up => up.Permission.Code)
+            .ToListAsync(cancellationToken);
+
+        var myPermCodes = permCodesFromRoles.Concat(permCodesFromDirect).Distinct().ToList();
+        return Ok(myPermCodes);
     }
 
     [HttpGet("{id:int}")]

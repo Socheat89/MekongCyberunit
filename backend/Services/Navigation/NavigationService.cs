@@ -31,16 +31,29 @@ public class NavigationService : INavigationService
 
         var isAdmin = userRoles.Any(ur => ur.Role.IsActive && ur.Role.Code.Equals("ADMIN", StringComparison.OrdinalIgnoreCase));
 
-        // 2. Get permitted permission IDs if not admin
+        // 2. Get permitted permission IDs (from roles + direct user permissions) if not admin
         var permittedPermissionIds = new HashSet<int>();
-        if (!isAdmin && roleIds.Count > 0)
+        if (!isAdmin)
         {
-            var pIds = await _context.RolePermissions
-                .Where(rp => roleIds.Contains(rp.RoleId))
-                .Select(rp => rp.PermissionId)
+            if (roleIds.Count > 0)
+            {
+                var rolePermIds = await _context.RolePermissions
+                    .Where(rp => roleIds.Contains(rp.RoleId))
+                    .Select(rp => rp.PermissionId)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var pId in rolePermIds)
+                {
+                    permittedPermissionIds.Add(pId);
+                }
+            }
+
+            var directPermIds = await _context.UserPermissions
+                .Where(up => up.UserId == userId)
+                .Select(up => up.PermissionId)
                 .ToListAsync(cancellationToken);
 
-            foreach (var pId in pIds)
+            foreach (var pId in directPermIds)
             {
                 permittedPermissionIds.Add(pId);
             }

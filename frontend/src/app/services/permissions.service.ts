@@ -1,6 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, tap, catchError, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   PermissionResponse,
@@ -14,10 +14,26 @@ import {
 export class PermissionsService {
   private readonly apiUrl = `${environment.apiUrl}/permissions`;
 
+  readonly myPermissionCodes = signal<string[]>([]);
+
   constructor(private http: HttpClient) {}
 
   getAll(): Observable<PermissionResponse[]> {
     return this.http.get<PermissionResponse[]>(this.apiUrl);
+  }
+
+  getMyPermissions(forceRefresh = false): Observable<string[]> {
+    if (!forceRefresh && this.myPermissionCodes().length > 0) {
+      return of(this.myPermissionCodes());
+    }
+
+    return this.http.get<string[]>(`${this.apiUrl}/me`).pipe(
+      tap(codes => this.myPermissionCodes.set(codes || [])),
+      catchError(() => {
+        this.myPermissionCodes.set([]);
+        return of([]);
+      })
+    );
   }
 
   getById(id: number): Observable<PermissionResponse> {
