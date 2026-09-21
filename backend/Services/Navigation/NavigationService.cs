@@ -18,6 +18,12 @@ public class NavigationService : INavigationService
         int userId,
         CancellationToken cancellationToken)
     {
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null || !user.IsActive)
+        {
+            return new List<NavigationItemResponse>();
+        }
+
         // 1. Get user roles
         var userRoles = await _context.UserRoles
             .Where(ur => ur.UserId == userId)

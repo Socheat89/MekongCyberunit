@@ -35,10 +35,15 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(modifiedReq).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401) {
-        // If 401 on authenticated call, reset session and redirect to login
+      if (error.status === 401 || error.status === 403) {
+        // If 401 or 403 on authenticated call, reset session and redirect to login
         authService.clearToken();
-        router.navigate(['/login']);
+        const msg = error.error?.message || '';
+        if (msg.toLowerCase().includes('disabled')) {
+          router.navigate(['/login'], { queryParams: { reason: 'disabled' } });
+        } else {
+          router.navigate(['/login']);
+        }
       }
       return throwError(() => error);
     })

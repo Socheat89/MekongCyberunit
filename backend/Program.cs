@@ -139,6 +139,37 @@ app.UseRouting();
 app.UseCors();
 
 app.UseAuthentication();
+
+// Middleware: Reject requests if the authenticated user account has been disabled
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        var idClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                   ?? context.User.FindFirst("sub")?.Value;
+
+        if (int.TryParse(idClaim, out var userId))
+        {
+            var dbContext = context.RequestServices.GetRequiredService<AppDbContext>();
+            var isActive = await dbContext.Users
+                .AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.IsActive)
+                .FirstOrDefaultAsync(context.RequestAborted);
+
+            if (!isActive)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("{\"message\":\"Account has been disabled. Please contact system administrator.\"}", context.RequestAborted);
+                return;
+            }
+        }
+    }
+
+    await next();
+});
+
 app.UseAuthorization();
 
 app.MapControllers();

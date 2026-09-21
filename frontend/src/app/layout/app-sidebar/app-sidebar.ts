@@ -183,6 +183,15 @@ import { StockService } from '../../services/stock.service';
 
               @if (isSettingsExpanded()) {
                 <div class="mekong-submenu mt-0.5 ml-4 pl-3 space-y-0.5 border-l-[1.5px]">
+                  @if (hasAccess('users')) {
+                    <a routerLink="/users" routerLinkActive="active" class="mekong-submenu-item">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                      </svg>
+                      <span>Users &amp; Permissions</span>
+                    </a>
+                  }
+
                   @if (hasAccess('units')) {
                     <a routerLink="/units" routerLinkActive="active" class="mekong-submenu-item">
                       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,6 +260,13 @@ export class AppSidebar implements OnInit {
   readonly alertCount = signal<number>(0);
 
   ngOnInit(): void {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/users') || path.startsWith('/units') || path.startsWith('/roles') || path.startsWith('/permissions') || path.startsWith('/settings')) {
+        this.isSettingsExpanded.set(true);
+      }
+    }
+
     this.navService.getNavigation().subscribe({
       error: () => {}
     });
@@ -291,6 +307,10 @@ export class AppSidebar implements OnInit {
   }
 
   hasSettingsAccess(): boolean {
-    return this.hasAccess('settings') || this.hasAccess('units') || this.hasAccess('roles') || this.hasAccess('permissions');
+    return this.hasAccess('settings') ||
+           this.hasAccess('users') ||
+           this.hasAccess('units') ||
+           this.hasAccess('roles') ||
+           this.hasAccess('permissions');
   }
 }

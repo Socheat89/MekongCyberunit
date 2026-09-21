@@ -1,7 +1,7 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { AuthService } from './auth.service';
 
 @Component({
@@ -251,9 +251,10 @@ import { AuthService } from './auth.service';
     </div>
   `
 })
-export class Login {
+export class Login implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly year = new Date().getFullYear();
 
@@ -270,6 +271,13 @@ export class Login {
 
   challengeToken = '';
   twoFactorCode = '';
+
+  ngOnInit(): void {
+    const reason = this.route.snapshot.queryParams['reason'];
+    if (reason === 'disabled') {
+      this.errorMessage.set('គណនីរបស់អ្នកត្រូវបានផ្អាក (Account has been disabled). Please contact your system administrator.');
+    }
+  }
 
   fillDemoAdmin(): void {
     this.credentials.username = 'admin';
