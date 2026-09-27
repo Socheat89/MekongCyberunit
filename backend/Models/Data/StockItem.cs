@@ -14,6 +14,8 @@ public class StockItem
     public decimal SellingPrice { get; set; }
     public int QuantityOnHand { get; set; }
     public int MinStockLevel { get; set; } = 10;
+    public int MaxStockLevel { get; set; } = 100;
+    public string? Brand { get; set; }
     public string? Location { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;

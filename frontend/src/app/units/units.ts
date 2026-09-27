@@ -198,27 +198,49 @@ export interface UnitItem {
                     }
                   </td>
                   @if (canEdit() || canDelete()) {
-                    <td class="px-6 py-4 text-right flex items-center justify-end space-x-2">
-                      @if (canEdit()) {
-                        <button
-                          type="button"
-                          (click)="openEditModal(unit)"
-                          class="text-xs font-bold transition px-2.5 py-1 rounded-lg text-indigo-600 hover:bg-indigo-50"
-                        >
-                          Edit
-                        </button>
-                      }
-                      @if (canDelete()) {
-                        <button
-                          type="button"
-                          (click)="toggleStatus(unit)"
-                          [class.text-rose-600]="unit.isActive"
-                          [class.text-emerald-600]="!unit.isActive"
-                          class="text-xs font-bold transition px-2.5 py-1 rounded-lg hover:bg-slate-100"
-                        >
-                          {{ unit.isActive ? 'Deactivate' : 'Activate' }}
-                        </button>
-                      }
+                    <td class="px-6 py-4 text-right">
+                      <div class="flex items-center justify-end gap-1.5">
+                        @if (canEdit()) {
+                          <button
+                            type="button"
+                            (click)="openEditModal(unit)"
+                            title="Edit Unit"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs border border-indigo-200 bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            <span>Edit</span>
+                          </button>
+                        }
+                        @if (canDelete()) {
+                          @if (unit.isActive) {
+                            <button
+                              type="button"
+                              (click)="toggleStatus(unit)"
+                              title="Deactivate Unit"
+                              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs border border-rose-200 bg-rose-50/80 text-rose-700 hover:bg-rose-100"
+                            >
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                              </svg>
+                              <span>Deactivate</span>
+                            </button>
+                          } @else {
+                            <button
+                              type="button"
+                              (click)="toggleStatus(unit)"
+                              title="Activate Unit"
+                              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs border border-emerald-200 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100"
+                            >
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span>Activate</span>
+                            </button>
+                          }
+                        }
+                      </div>
                     </td>
                   }
                 </tr>

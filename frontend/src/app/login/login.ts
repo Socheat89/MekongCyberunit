@@ -58,7 +58,7 @@ import { AuthService } from './auth.service';
                 <div class="font-bold" style="color: #fca5a5;">{{ errorMessage() }}</div>
                 @if (lockoutTimer() > 0) {
                   <div class="mt-1 font-mono font-medium" style="color: rgba(252,165,165,0.8);">
-                    Retry in: <span class="font-black underline">{{ lockoutTimer() }}s</span>
+                    Retry in: <span class="font-black underline">{{ formattedLockoutTimer() }}</span>
                   </div>
                 }
               </div>
@@ -139,8 +139,9 @@ import { AuthService } from './auth.service';
                   type="button"
                   (click)="fillDemoAdmin()"
                   class="mekong-demo-pill"
+                  title="Fill Admin Credentials"
                 >
-                  <span class="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span>Fill Demo Admin</span>
                 </button>
                 <a
@@ -175,25 +176,69 @@ import { AuthService } from './auth.service';
             </form>
           }
 
-          <!-- ── PHASE 2: Two-Factor Auth ── -->
+          <!-- ── PHASE 2: Two-Factor Setup or Verification ── -->
           @if (requiresTwoFactor()) {
             <form (ngSubmit)="verifyTwoFactor()" class="space-y-5 animate-fade-in">
-              <div class="text-center mb-6">
-                <div class="inline-flex p-3.5 rounded-2xl mb-3"
+              <div class="text-center mb-4">
+                <div class="inline-flex p-3.5 rounded-2xl mb-2.5"
                   style="background: rgba(26,181,161,0.12); border: 1px solid rgba(26,181,161,0.22);">
                   <svg class="w-7 h-7" style="color: #3de8d4;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.099.99-4.328.99-6.632a13.95 13.95 0 00-2.17-7.484M3.05 11c0-1.664.303-3.257.86-4.725M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                   </svg>
                 </div>
-                <h2 class="text-lg font-black" style="color: #e8fefb; letter-spacing: -0.025em;">Two-Factor Challenge</h2>
+                <h2 class="text-lg font-black" style="color: #e8fefb; letter-spacing: -0.025em;">
+                  {{ requiresSetup() ? 'Setup Two-Factor Authentication' : 'Two-Factor Verification' }}
+                </h2>
                 <p class="text-xs mt-1.5" style="color: rgba(168,197,193,0.75);">
-                  Enter the 6-digit TOTP code from your authenticator app.
+                  {{ requiresSetup() ? 'Scan the QR code with your Authenticator app, then enter the 6-digit confirmation code.' : 'Enter the 6-digit TOTP code from your authenticator app.' }}
                 </p>
               </div>
 
+              <!-- Setup 2FA Container (Step 1: QR Code & Secret Key) -->
+              @if (requiresSetup()) {
+                <div class="p-4 rounded-2xl space-y-3" style="background: rgba(15,35,32,0.6); border: 1px solid rgba(30,196,175,0.25);">
+                  <div class="flex items-center gap-3">
+                    @if (qrCodeDataUrl()) {
+                      <div class="p-1.5 bg-white rounded-xl shrink-0">
+                        <img [src]="qrCodeDataUrl()" alt="2FA QR Code" class="w-24 h-24 object-contain" />
+                      </div>
+                    }
+                    <div class="flex-1 min-w-0 text-xs leading-relaxed">
+                      <div class="font-bold text-teal-300">1. Scan QR Code</div>
+                      <div style="color: rgba(168,197,193,0.7);" class="text-[11px] mt-0.5">
+                        Use Google Authenticator or 1Password to scan this QR code.
+                      </div>
+                    </div>
+                  </div>
+
+                  @if (secretKey()) {
+                    <div class="pt-2 border-t border-teal-900/50">
+                      <div class="text-[11px] font-bold text-teal-200/80 mb-1">Or enter Secret Key manually:</div>
+                      <div class="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          readonly
+                          [value]="secretKey()"
+                          class="mekong-auth-input py-1.5 px-2.5 text-xs font-mono font-bold tracking-wider text-teal-300 flex-1 select-all"
+                        />
+                        <button
+                          type="button"
+                          (click)="copySecret()"
+                          class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                          style="background: rgba(30,196,175,0.2); border: 1px solid rgba(30,196,175,0.35); color: #3de8d4;"
+                        >
+                          {{ copiedSecret() ? '✓ Copied' : 'Copy' }}
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Verification Code Input -->
               <div>
                 <label for="twoFactorCode" class="mekong-auth-label block text-center">
-                  Verification Code
+                  {{ requiresSetup() ? 'Step 2: Enter 6-digit Code' : 'Verification Code' }}
                 </label>
                 <input
                   id="twoFactorCode"
@@ -203,9 +248,10 @@ import { AuthService } from './auth.service';
                   maxlength="6"
                   required
                   [(ngModel)]="twoFactorCode"
+                  (ngModelChange)="onTwoFactorCodeChange($event)"
                   placeholder="000 000"
                   autofocus
-                  class="mekong-auth-input w-full text-center tracking-[0.5em] font-mono text-2xl py-4 rounded-2xl font-black"
+                  class="mekong-auth-input w-full text-center tracking-[0.5em] font-mono text-2xl py-3.5 rounded-2xl font-black"
                 />
               </div>
 
@@ -231,9 +277,9 @@ import { AuthService } from './auth.service';
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>Verifying…</span>
+                  <span>{{ requiresSetup() ? 'Activating 2FA…' : 'Verifying…' }}</span>
                 } @else {
-                  <span>Confirm & Sign In</span>
+                  <span>{{ requiresSetup() ? 'Activate 2FA & Finish' : 'Confirm & Sign In' }}</span>
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
@@ -267,6 +313,10 @@ export class Login implements OnInit {
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
   readonly requiresTwoFactor = signal<boolean>(false);
+  readonly requiresSetup = signal<boolean>(false);
+  readonly qrCodeDataUrl = signal<string | null>(null);
+  readonly secretKey = signal<string | null>(null);
+  readonly copiedSecret = signal<boolean>(false);
   readonly lockoutTimer = signal<number>(0);
 
   challengeToken = '';
@@ -284,6 +334,15 @@ export class Login implements OnInit {
     this.credentials.password = 'Password123!';
   }
 
+  copySecret(): void {
+    const s = this.secretKey();
+    if (s && typeof navigator !== 'undefined') {
+      navigator.clipboard.writeText(s);
+      this.copiedSecret.set(true);
+      setTimeout(() => this.copiedSecret.set(false), 2000);
+    }
+  }
+
   signIn(): void {
     if (!this.credentials.username || !this.credentials.password) {
       this.errorMessage.set('Please enter both username and password.');
@@ -298,6 +357,9 @@ export class Login implements OnInit {
         this.isLoading.set(false);
         if (res.requiresTwoFactor) {
           this.challengeToken = res.challengeToken || '';
+          this.requiresSetup.set(!!res.requiresSetup);
+          this.qrCodeDataUrl.set(res.qrCodeDataUrl || null);
+          this.secretKey.set(res.secret || null);
           this.requiresTwoFactor.set(true);
         } else {
           this.router.navigate(['/dashboard']);
@@ -308,14 +370,27 @@ export class Login implements OnInit {
         if (err.status === 0) {
           this.errorMessage.set('Cannot connect to the Mekong Stock server. Please make sure the backend is running.');
         } else if (err.status === 423) {
-          const msg = err.error?.message || 'Account is temporarily locked.';
+          const msg = err.error?.message || 'Account is locked for 30 minutes due to 5 failed login attempts.';
           this.errorMessage.set(msg);
-          this.startLockoutCountdown(60);
+          let seconds = 30 * 60;
+          if (err.error?.lockoutEndUtc) {
+            const diff = Math.ceil((new Date(err.error.lockoutEndUtc).getTime() - Date.now()) / 1000);
+            if (diff > 0) seconds = diff;
+          }
+          this.startLockoutCountdown(seconds);
         } else {
           this.errorMessage.set(err.error?.message || 'Invalid username or password.');
         }
       }
     });
+  }
+
+  onTwoFactorCodeChange(val: string): void {
+    const cleanCode = (val || '').replace(/\D/g, '');
+    if (cleanCode.length === 6 && !this.isLoading()) {
+      this.twoFactorCode = cleanCode;
+      this.verifyTwoFactor();
+    }
   }
 
   verifyTwoFactor(): void {
@@ -334,7 +409,19 @@ export class Login implements OnInit {
       },
       error: err => {
         this.isLoading.set(false);
-        this.errorMessage.set(err.error?.message || 'Invalid two-factor code.');
+        if (err.status === 423) {
+          const msg = err.error?.message || 'Account is locked for 30 minutes due to 5 failed login attempts.';
+          this.errorMessage.set(msg);
+          this.requiresTwoFactor.set(false);
+          let seconds = 30 * 60;
+          if (err.error?.lockoutEndUtc) {
+            const diff = Math.ceil((new Date(err.error.lockoutEndUtc).getTime() - Date.now()) / 1000);
+            if (diff > 0) seconds = diff;
+          }
+          this.startLockoutCountdown(seconds);
+        } else {
+          this.errorMessage.set(err.error?.message || 'Invalid two-factor code.');
+        }
       }
     });
   }
@@ -345,12 +432,32 @@ export class Login implements OnInit {
     this.challengeToken = '';
   }
 
+  formattedLockoutTimer(): string {
+    const totalSeconds = this.lockoutTimer();
+    if (totalSeconds <= 0) return '0s';
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) {
+      return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  private lockoutInterval: ReturnType<typeof setInterval> | null = null;
+
   private startLockoutCountdown(seconds: number): void {
+    if (this.lockoutInterval) {
+      clearInterval(this.lockoutInterval);
+      this.lockoutInterval = null;
+    }
     this.lockoutTimer.set(seconds);
-    const interval = setInterval(() => {
+    this.lockoutInterval = setInterval(() => {
       this.lockoutTimer.update(t => {
         if (t <= 1) {
-          clearInterval(interval);
+          if (this.lockoutInterval) {
+            clearInterval(this.lockoutInterval);
+            this.lockoutInterval = null;
+          }
           this.errorMessage.set(null);
           return 0;
         }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.Models.Request;
 using backend.Services;
+using backend.Services.TwoFactor;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,10 +12,14 @@ namespace backend.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ITwoFactorService _twoFactorService;
 
-    public AuthController(IUserService userService)
+    public AuthController(
+        IUserService userService,
+        ITwoFactorService twoFactorService)
     {
         _userService = userService;
+        _twoFactorService = twoFactorService;
     }
 
     [HttpPost("register")]
@@ -79,7 +84,7 @@ public class AuthController : ControllerBase
         }
 
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var result = await _userService.SetupTwoFactorAsync(userId.Value, ipAddress, cancellationToken);
+        var result = await _twoFactorService.SetupTwoFactorAsync(userId.Value, ipAddress, cancellationToken);
 
         if (!result.Succeeded)
         {
@@ -106,7 +111,7 @@ public class AuthController : ControllerBase
         }
 
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var result = await _userService.EnableTwoFactorAsync(userId.Value, request, ipAddress, cancellationToken);
+        var result = await _twoFactorService.EnableTwoFactorAsync(userId.Value, request, ipAddress, cancellationToken);
 
         if (!result.Succeeded)
         {
@@ -126,7 +131,7 @@ public class AuthController : ControllerBase
         CancellationToken cancellationToken)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var result = await _userService.VerifyTwoFactorLoginAsync(request, ipAddress, cancellationToken);
+        var result = await _twoFactorService.VerifyTwoFactorLoginAsync(request, ipAddress, cancellationToken);
 
         if (!result.Succeeded)
         {
@@ -160,7 +165,7 @@ public class AuthController : ControllerBase
         }
 
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var result = await _userService.DisableTwoFactorAsync(userId.Value, request, ipAddress, cancellationToken);
+        var result = await _twoFactorService.DisableTwoFactorAsync(userId.Value, request, ipAddress, cancellationToken);
 
         if (!result.Succeeded)
         {
@@ -174,6 +179,12 @@ public class AuthController : ControllerBase
     {
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                    ?? User.FindFirst("sub")?.Value;
-        return int.TryParse(idClaim, out var id) ? id : null;
+
+        if (int.TryParse(idClaim, out var userId))
+        {
+            return userId;
+        }
+
+        return null;
     }
 }

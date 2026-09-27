@@ -35,14 +35,18 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(modifiedReq).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 || error.status === 403) {
-        // If 401 or 403 on authenticated call, reset session and redirect to login
-        authService.clearToken();
-        const msg = error.error?.message || '';
-        if (msg.toLowerCase().includes('disabled')) {
-          router.navigate(['/login'], { queryParams: { reason: 'disabled' } });
-        } else {
-          router.navigate(['/login']);
+      const isAuthEndpoint = req.url.includes('/api/auth/login') || req.url.includes('/api/auth/2fa/verify-login') || req.url.includes('/api/auth/register');
+      if (!isAuthEndpoint) {
+        if (error.status === 401) {
+          authService.clearToken();
+          const msg = error.error?.message || '';
+          if (msg.toLowerCase().includes('disabled')) {
+            router.navigate(['/login'], { queryParams: { reason: 'disabled' } });
+          } else {
+            router.navigate(['/login']);
+          }
+        } else if (error.status === 403) {
+          router.navigate(['/forbidden']);
         }
       }
       return throwError(() => error);

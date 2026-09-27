@@ -22,6 +22,10 @@ export class PermissionsService {
     return this.http.get<PermissionResponse[]>(this.apiUrl);
   }
 
+  getPages(): Observable<Array<{ id: number; code: string; name: string; parentId?: number }>> {
+    return this.http.get<Array<{ id: number; code: string; name: string; parentId?: number }>>(`${this.apiUrl}/pages`);
+  }
+
   getMyPermissions(forceRefresh = false): Observable<string[]> {
     if (!forceRefresh && this.myPermissionCodes().length > 0) {
       return of(this.myPermissionCodes());

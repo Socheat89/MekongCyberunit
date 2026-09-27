@@ -240,10 +240,10 @@ import { AuthService } from '../../login/auth.service';
                         [routerLink]="['/stock/in']"
                         [queryParams]="{ itemId: item.id }"
                         title="Quick Stock In"
-                        class="p-2 rounded-xl text-emerald-600 hover:bg-emerald-50 transition"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100 hover:scale-110 shadow-xs transition-all duration-200"
                       >
-                        <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/>
                         </svg>
                       </a>
 
@@ -252,10 +252,10 @@ import { AuthService } from '../../login/auth.service';
                           type="button"
                           (click)="openEditModal(item)"
                           title="Edit Item"
-                          class="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-slate-200 bg-slate-50/80 text-slate-600 hover:text-teal-700 hover:border-teal-200 hover:bg-teal-50 hover:scale-110 shadow-xs transition-all duration-200"
                         >
-                          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                           </svg>
                         </button>
                       }
@@ -265,9 +265,9 @@ import { AuthService } from '../../login/auth.service';
                           type="button"
                           (click)="deleteItem(item)"
                           title="Deactivate"
-                          class="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                          class="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-rose-200 bg-rose-50/70 text-rose-600 hover:bg-rose-100 hover:scale-110 shadow-xs transition-all duration-200"
                         >
-                          <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                           </svg>
                         </button>

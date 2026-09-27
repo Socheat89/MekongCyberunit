@@ -28,7 +28,10 @@ public record LoginResponse(
     bool RequiresTwoFactor,
     string? AccessToken,
     string? ChallengeToken,
-    DateTimeOffset? ExpiresAtUtc);
+    DateTimeOffset? ExpiresAtUtc,
+    bool RequiresSetup = false,
+    string? QrCodeDataUrl = null,
+    string? Secret = null);
 
 public record UserResponse(
     int Id,

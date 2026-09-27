@@ -3,10 +3,9 @@ $ErrorActionPreference = "Stop"
 
 # Terminate any lingering dotnet processes on port 5230
 Get-Process -Name "dotnet", "backend" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 1
-if (Test-Path "backend/is405.db") {
-    Remove-Item "backend/is405.db" -Force -ErrorAction SilentlyContinue
-}
+Start-Sleep -Seconds 2
+Get-ChildItem -Path "backend" -Filter "is405.db*" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 500
 
 Write-Host "Starting ASP.NET Core API process..." -ForegroundColor Cyan
 $process = Start-Process -FilePath "dotnet" -ArgumentList "run --project backend/backend.csproj --launch-profile http" -PassThru -NoNewWindow
@@ -14,7 +13,7 @@ $process = Start-Process -FilePath "dotnet" -ArgumentList "run --project backend
 
 try {
     # Wait for API to be responsive
-    $maxAttempts = 30
+    $maxAttempts = 60
     $ready = $false
     for ($i = 0; $i -lt $maxAttempts; $i++) {
         Start-Sleep -Seconds 1
@@ -25,6 +24,13 @@ try {
             $res.Close()
             $ready = $true
             break
+        } catch [System.Net.WebException] {
+            if ($_.Exception.Response) {
+                $_.Exception.Response.Close()
+                $ready = $true
+                break
+            }
+            Write-Host "Waiting for server ($($i+1)/$maxAttempts)..." -ForegroundColor DarkGray
         } catch {
             Write-Host "Waiting for server ($($i+1)/$maxAttempts)..." -ForegroundColor DarkGray
         }
@@ -250,7 +256,13 @@ try {
         if ($res.StatusCode -ne 200) { throw "Expected 200 OK but got $($res.StatusCode)" }
         $items = @($res.Data)
         if ($items.Count -lt 1) { throw "Expected at least 1 navigation item" }
-        $codes = $items | ForEach-Object { $_.code }
+        $codes = @()
+        foreach ($it in $items) {
+            $codes += $it.code
+            if ($it.children) {
+                foreach ($ch in $it.children) { $codes += $ch.code }
+            }
+        }
         if ($codes -notcontains "dashboard") { throw "Expected dashboard in navigation" }
         if ($codes -notcontains "units") { throw "Expected units in navigation" }
     }
@@ -269,6 +281,7 @@ try {
         if ($items.Count -lt 3) { throw "Expected at least 3 permissions" }
         $unitPerm = $items | Where-Object { $_.code -eq "units.view" }
         if (-not $unitPerm) { throw "Expected 'units.view' permission" }
+        $script:unitPageId = $unitPerm.pageId
     }
 
     Assert-Test "GET /api/permissions/1 returns permission by ID" {
@@ -283,7 +296,8 @@ try {
     }
 
     Assert-Test "POST /api/permissions creates a new permission" {
-        $body = @{ pageId = 2; action = "create"; description = "Create units" }
+        $targetPageId = if ($script:unitPageId) { $script:unitPageId } else { 2 }
+        $body = @{ pageId = $targetPageId; action = "create"; description = "Create units" }
         $res = Invoke-Api "$baseUrl/api/permissions" "POST" $body $script:adminToken
         if ($res.StatusCode -ne 201) { throw "Expected 201 Created but got $($res.StatusCode)" }
         if ($res.Data.code -ne "units.create") { throw "Expected code 'units.create' but got '$($res.Data.code)'" }
@@ -291,7 +305,8 @@ try {
     }
 
     Assert-Test "POST /api/permissions with duplicate code returns 409 Conflict" {
-        $body = @{ pageId = 2; action = "create"; description = "Create units duplicate" }
+        $targetPageId = if ($script:unitPageId) { $script:unitPageId } else { 2 }
+        $body = @{ pageId = $targetPageId; action = "create"; description = "Create units duplicate" }
         $res = Invoke-Api "$baseUrl/api/permissions" "POST" $body $script:adminToken
         if ($res.StatusCode -ne 409) { throw "Expected 409 Conflict but got $($res.StatusCode)" }
     }

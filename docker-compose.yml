@@ -1,4 +1,18 @@
 services:
+  oracle:
+    image: socheat29/oracle:slim
+    container_name: is405_oracle
+    restart: unless-stopped
+    environment:
+      - ORACLE_PASSWORD=123
+      - ORACLE_DATABASE=XEPDB1
+    ports:
+      - "3333:1521"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+    networks:
+      - is405_network
+
   backend:
     build:
       context: ./backend
@@ -9,13 +23,18 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
-      - DatabaseProvider=Sqlite
+      - DatabaseProvider=Oracle
       - ConnectionStrings__DefaultConnection=Data Source=/app/data/is405.db
+      - ConnectionStrings__OracleConnection=Data Source=oracle:1521/XEPDB1;User Id=system;Password=123;
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "5000:5000"
       - "5230:5000"
     volumes:
       - backend_data:/app/data
+    depends_on:
+      - oracle
     networks:
       - is405_network
 
@@ -37,6 +56,8 @@ services:
 volumes:
   backend_data:
     name: is405_sqlite_data
+  oracle_data:
+    name: is405_oracle_data
 
 networks:
   is405_network:

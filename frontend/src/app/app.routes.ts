@@ -12,6 +12,18 @@ import { RoleList } from './roles/roles';
 import { PermissionList } from './permissions/permissions';
 import { Profile } from './profile/profile';
 import { UserList } from './users/users';
+
+// Modules mapping to backend microservices
+import { InventoryListComponent } from './modules/inventory/inventory-list.component';
+import { CatalogComponent } from './modules/catalog/catalog.component';
+import { PurchasingComponent } from './modules/purchasing/purchasing.component';
+import { SalesComponent } from './modules/sales/sales.component';
+import { ReportsComponent } from './modules/reports/reports.component';
+import { CustomersComponent } from './modules/customers/customers.component';
+import { SuppliersComponent } from './modules/suppliers/suppliers.component';
+import { AuditComponent } from './modules/audit/audit.component';
+
+// Legacy stock components for deep link backward compatibility
 import { StockItemsComponent } from './stock/stock-items/stock-items';
 import { StockInComponent } from './stock/stock-in/stock-in';
 import { StockOutComponent } from './stock/stock-out/stock-out';
@@ -39,7 +51,7 @@ export const routes: Routes = [
     component: Forbidden
   },
 
-  // Protected Application Shell Routes
+  // Protected Application Shell Routes (Full-Width, Odoo-Inspired Top Navigation)
   {
     path: '',
     component: AppLayout,
@@ -51,6 +63,57 @@ export const routes: Routes = [
         canActivate: [pageAccessGuard],
         data: { pageCode: 'dashboard' }
       },
+      // Backend Modules Feature Routes
+      {
+        path: 'inventory',
+        component: InventoryListComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-items' }
+      },
+      {
+        path: 'catalog',
+        component: CatalogComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-items' }
+      },
+      {
+        path: 'purchasing',
+        component: PurchasingComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-in' }
+      },
+      {
+        path: 'sales',
+        component: SalesComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-out' }
+      },
+      {
+        path: 'reports',
+        component: ReportsComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-alerts' }
+      },
+      {
+        path: 'customers',
+        component: CustomersComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-out' }
+      },
+      {
+        path: 'suppliers',
+        component: SuppliersComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-in' }
+      },
+      {
+        path: 'audit',
+        component: AuditComponent,
+        canActivate: [pageAccessGuard],
+        data: { pageCode: 'stock-movements' }
+      },
+
+      // Administration & Organization
       {
         path: 'users',
         component: UserList,
@@ -79,9 +142,11 @@ export const routes: Routes = [
         path: 'profile',
         component: Profile
       },
+
+      // Stock Redirect & Deep-link Compatibility
       {
         path: 'stock',
-        redirectTo: 'stock/items',
+        redirectTo: 'inventory',
         pathMatch: 'full'
       },
       {

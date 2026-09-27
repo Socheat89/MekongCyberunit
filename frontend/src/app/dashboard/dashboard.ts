@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
+import { SubHeaderService } from '../layout/sub-header/sub-header.service';
 import { AuthService } from '../login/auth.service';
 import { RolesService } from '../services/roles.service';
 import { PermissionsService } from '../services/permissions.service';
@@ -222,6 +223,8 @@ export class Dashboard implements OnInit {
   private readonly permissionsService = inject(PermissionsService);
   private readonly usersService = inject(UsersService);
   private readonly stockService = inject(StockService);
+  private readonly subHeaderService = inject(SubHeaderService);
+  private readonly router = inject(Router);
 
   readonly totalRoles = signal<number>(0);
   readonly totalPermissions = signal<number>(0);
@@ -253,6 +256,29 @@ export class Dashboard implements OnInit {
   }
 
   ngOnInit(): void {
+    this.subHeaderService.setConfig({
+      title: 'Executive Operations Dashboard',
+      subtitle: 'Command Center & Inventory Pulse',
+      breadcrumbs: [
+        { label: 'Mekong Stock', route: '/dashboard' },
+        { label: 'Command Center' }
+      ],
+      actions: [
+        {
+          id: 'go-inventory',
+          label: 'Inventory Master →',
+          variant: 'primary',
+          action: () => this.router.navigate(['/inventory'])
+        },
+        {
+          id: 'catalog',
+          label: 'Product Catalog',
+          variant: 'secondary',
+          action: () => this.router.navigate(['/catalog'])
+        }
+      ]
+    });
+
     this.rolesService.getRoles({ pageSize: 1 }).subscribe({
       next: res => this.totalRoles.set(res.totalRoles || res.totalCount || 0),
       error: () => {}

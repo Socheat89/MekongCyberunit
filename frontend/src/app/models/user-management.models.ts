@@ -7,6 +7,7 @@ export interface UserDto {
   directPermissionIds: number[];
   effectivePermissions: string[];
   isActive: boolean;
+  twoFactorEnabled: boolean;
   createdAtUtc: string;
 }
 

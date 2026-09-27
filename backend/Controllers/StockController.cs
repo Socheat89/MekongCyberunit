@@ -97,7 +97,11 @@ public class StockController : ControllerBase
             return BadRequest(new { message = "Item name is required." });
         }
 
-        var skuExists = await _context.StockItems.AnyAsync(i => i.Sku == request.Sku.Trim().ToUpper(), cancellationToken);
+        var skuUpper = request.Sku.Trim().ToUpper();
+        var skuExists = await _context.StockItems
+            .Where(i => i.Sku == skuUpper)
+            .Select(i => i.Id)
+            .FirstOrDefaultAsync(cancellationToken) > 0;
         if (skuExists)
         {
             return BadRequest(new { message = $"An item with SKU '{request.Sku}' already exists." });

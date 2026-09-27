@@ -1,4 +1,11 @@
 using backend.Models.Data;
+using backend.Modules.Audit.Models;
+using backend.Modules.Catalog.Models;
+using backend.Modules.Customers.Models;
+using backend.Modules.Inventory.Models;
+using backend.Modules.Purchasing.Models;
+using backend.Modules.Sales.Models;
+using backend.Modules.Suppliers.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +24,10 @@ public static class DbSeeder
             catch (Exception ex) when (ex.Message.Contains("ORA-00955") || ex.Message.Contains("already used"))
             {
                 var tables = new[] {
+                    "SalesReturnItems", "SalesReturns", "SalePayments", "SalesOrderItems", "SalesOrders",
+                    "PurchaseReturnItems", "PurchaseReturns", "GoodsReceiptItems", "GoodsReceipts", "PurchaseOrderItems", "PurchaseOrders",
+                    "StockTransferItems", "StockTransfers", "StockAdjustments", "WarehouseStocks", "Warehouses",
+                    "Customers", "Suppliers", "UnitsOfMeasure", "Brands", "AuditLogs",
                     "StockMovements", "StockItems", "StockCategories",
                     "UserPermissions", "UserRoles", "RolePermissions",
                     "Permissions", "Pages", "Roles", "Users"
@@ -26,7 +37,9 @@ public static class DbSeeder
                 {
                     try
                     {
+#pragma warning disable EF1002
                         await context.Database.ExecuteSqlRawAsync($"BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"{table}\" CASCADE CONSTRAINTS'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+#pragma warning restore EF1002
                     }
                     catch { }
                 }
@@ -39,7 +52,7 @@ public static class DbSeeder
             await context.Database.EnsureCreatedAsync();
         }
 
-        // Ensure UserPermissions and Stock tables exist in SQLite DB if upgraded from older schema
+        // Ensure tables and columns exist in SQLite DB if upgraded from older schema
         if (context.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
         {
             await context.Database.ExecuteSqlRawAsync(@"
@@ -73,6 +86,8 @@ public static class DbSeeder
                     ""SellingPrice"" TEXT NOT NULL DEFAULT '0',
                     ""QuantityOnHand"" INTEGER NOT NULL DEFAULT 0,
                     ""MinStockLevel"" INTEGER NOT NULL DEFAULT 10,
+                    ""MaxStockLevel"" INTEGER NOT NULL DEFAULT 100,
+                    ""Brand"" TEXT NULL,
                     ""Location"" TEXT NULL,
                     ""IsActive"" INTEGER NOT NULL DEFAULT 1,
                     ""CreatedAtUtc"" TEXT NOT NULL,
@@ -85,6 +100,8 @@ public static class DbSeeder
                     ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                     ""ReferenceNo"" TEXT NOT NULL,
                     ""MovementType"" TEXT NOT NULL,
+                    ""ReferenceType"" TEXT NULL,
+                    ""WarehouseId"" INTEGER NULL,
                     ""ItemId"" INTEGER NOT NULL,
                     ""Quantity"" INTEGER NOT NULL,
                     ""UnitPrice"" TEXT NOT NULL DEFAULT '0',
@@ -98,59 +115,332 @@ public static class DbSeeder
                     ""CreatedAtUtc"" TEXT NOT NULL,
                     CONSTRAINT ""FK_StockMovements_StockItems_ItemId"" FOREIGN KEY (""ItemId"") REFERENCES ""StockItems"" (""Id"") ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS ""AuditLogs"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""UserId"" INTEGER NULL,
+                    ""Username"" TEXT NULL,
+                    ""Action"" TEXT NOT NULL,
+                    ""EntityName"" TEXT NOT NULL,
+                    ""EntityId"" TEXT NULL,
+                    ""Description"" TEXT NOT NULL,
+                    ""DetailsJson"" TEXT NULL,
+                    ""IpAddress"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ""Brands"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""Name"" TEXT NOT NULL,
+                    ""Description"" TEXT NULL,
+                    ""IsActive"" INTEGER NOT NULL DEFAULT 1,
+                    ""CreatedAtUtc"" TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ""UnitsOfMeasure"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""Code"" TEXT NOT NULL,
+                    ""Name"" TEXT NOT NULL,
+                    ""IsActive"" INTEGER NOT NULL DEFAULT 1
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_UnitsOfMeasure_Code"" ON ""UnitsOfMeasure"" (""Code"");
+
+                CREATE TABLE IF NOT EXISTS ""Suppliers"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""SupplierCode"" TEXT NOT NULL,
+                    ""Name"" TEXT NOT NULL,
+                    ""ContactPerson"" TEXT NULL,
+                    ""Phone"" TEXT NULL,
+                    ""Email"" TEXT NULL,
+                    ""Address"" TEXT NULL,
+                    ""PaymentTerms"" TEXT NOT NULL DEFAULT 'Net 30',
+                    ""IsActive"" INTEGER NOT NULL DEFAULT 1,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    ""UpdatedAtUtc"" TEXT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Suppliers_SupplierCode"" ON ""Suppliers"" (""SupplierCode"");
+
+                CREATE TABLE IF NOT EXISTS ""Customers"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""CustomerCode"" TEXT NOT NULL,
+                    ""Name"" TEXT NOT NULL,
+                    ""ContactPerson"" TEXT NULL,
+                    ""Phone"" TEXT NULL,
+                    ""Email"" TEXT NULL,
+                    ""Address"" TEXT NULL,
+                    ""CustomerType"" TEXT NOT NULL DEFAULT 'Registered',
+                    ""CreditLimit"" TEXT NOT NULL DEFAULT '0',
+                    ""PaymentTerms"" TEXT NOT NULL DEFAULT 'Cash',
+                    ""IsActive"" INTEGER NOT NULL DEFAULT 1,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    ""UpdatedAtUtc"" TEXT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Customers_CustomerCode"" ON ""Customers"" (""CustomerCode"");
+
+                CREATE TABLE IF NOT EXISTS ""Warehouses"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""Code"" TEXT NOT NULL,
+                    ""Name"" TEXT NOT NULL,
+                    ""Location"" TEXT NULL,
+                    ""ContactPhone"" TEXT NULL,
+                    ""IsActive"" INTEGER NOT NULL DEFAULT 1,
+                    ""CreatedAtUtc"" TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Warehouses_Code"" ON ""Warehouses"" (""Code"");
+
+                CREATE TABLE IF NOT EXISTS ""WarehouseStocks"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""WarehouseId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""QuantityOnHand"" INTEGER NOT NULL DEFAULT 0,
+                    ""ReservedQuantity"" INTEGER NOT NULL DEFAULT 0,
+                    ""UpdatedAtUtc"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_WarehouseStocks_Warehouses_WarehouseId"" FOREIGN KEY (""WarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_WarehouseStocks_StockItems_ProductId"" FOREIGN KEY (""ProductId"" ) REFERENCES ""StockItems"" (""Id"") ON DELETE CASCADE
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS ""IX_WarehouseStocks_WarehouseId_ProductId"" ON ""WarehouseStocks"" (""WarehouseId"", ""ProductId"");
+
+                CREATE TABLE IF NOT EXISTS ""StockAdjustments"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""AdjustmentNo"" TEXT NOT NULL,
+                    ""WarehouseId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""AdjustmentType"" TEXT NOT NULL,
+                    ""QuantityBefore"" INTEGER NOT NULL,
+                    ""QuantityAdjusted"" INTEGER NOT NULL,
+                    ""QuantityAfter"" INTEGER NOT NULL,
+                    ""UnitCost"" TEXT NOT NULL DEFAULT '0',
+                    ""Reason"" TEXT NOT NULL,
+                    ""Notes"" TEXT NULL,
+                    ""CreatedByUserId"" INTEGER NULL,
+                    ""CreatedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_StockAdjustments_Warehouses_WarehouseId"" FOREIGN KEY (""WarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE RESTRICT,
+                    CONSTRAINT ""FK_StockAdjustments_StockItems_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""StockItems"" (""Id"") ON DELETE RESTRICT
+                );
+
+                CREATE TABLE IF NOT EXISTS ""StockTransfers"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""TransferNo"" TEXT NOT NULL,
+                    ""FromWarehouseId"" INTEGER NOT NULL,
+                    ""ToWarehouseId"" INTEGER NOT NULL,
+                    ""Status"" TEXT NOT NULL DEFAULT 'PENDING',
+                    ""Notes"" TEXT NULL,
+                    ""CreatedByUserId"" INTEGER NULL,
+                    ""CreatedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    ""CompletedAtUtc"" TEXT NULL,
+                    CONSTRAINT ""FK_StockTransfers_Warehouses_FromWarehouseId"" FOREIGN KEY (""FromWarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE RESTRICT,
+                    CONSTRAINT ""FK_StockTransfers_Warehouses_ToWarehouseId"" FOREIGN KEY (""ToWarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE RESTRICT
+                );
+
+                CREATE TABLE IF NOT EXISTS ""StockTransferItems"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""StockTransferId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""Quantity"" INTEGER NOT NULL,
+                    CONSTRAINT ""FK_StockTransferItems_StockTransfers_StockTransferId"" FOREIGN KEY (""StockTransferId"") REFERENCES ""StockTransfers"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_StockTransferItems_StockItems_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""StockItems"" (""Id"") ON DELETE RESTRICT
+                );
+
+                CREATE TABLE IF NOT EXISTS ""PurchaseOrders"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""PoNumber"" TEXT NOT NULL,
+                    ""SupplierId"" INTEGER NOT NULL,
+                    ""WarehouseId"" INTEGER NULL,
+                    ""OrderDateUtc"" TEXT NOT NULL,
+                    ""ExpectedDateUtc"" TEXT NULL,
+                    ""PaymentTerms"" TEXT NOT NULL DEFAULT 'Net 30',
+                    ""Status"" TEXT NOT NULL DEFAULT 'DRAFT',
+                    ""Subtotal"" TEXT NOT NULL DEFAULT '0',
+                    ""Tax"" TEXT NOT NULL DEFAULT '0',
+                    ""Discount"" TEXT NOT NULL DEFAULT '0',
+                    ""TotalAmount"" TEXT NOT NULL DEFAULT '0',
+                    ""Notes"" TEXT NULL,
+                    ""CreatedByUserId"" INTEGER NULL,
+                    ""CreatedByUsername"" TEXT NULL,
+                    ""ApprovedByUserId"" INTEGER NULL,
+                    ""ApprovedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    ""UpdatedAtUtc"" TEXT NULL,
+                    CONSTRAINT ""FK_PurchaseOrders_Suppliers_SupplierId"" FOREIGN KEY (""SupplierId"") REFERENCES ""Suppliers"" (""Id"") ON DELETE RESTRICT,
+                    CONSTRAINT ""FK_PurchaseOrders_Warehouses_WarehouseId"" FOREIGN KEY (""WarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ""PurchaseOrderItems"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""PurchaseOrderId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""Quantity"" INTEGER NOT NULL,
+                    ""UnitCost"" TEXT NOT NULL DEFAULT '0',
+                    ""Discount"" TEXT NOT NULL DEFAULT '0',
+                    ""Tax"" TEXT NOT NULL DEFAULT '0',
+                    ""Subtotal"" TEXT NOT NULL DEFAULT '0',
+                    ""ReceivedQuantity"" INTEGER NOT NULL DEFAULT 0,
+                    CONSTRAINT ""FK_PurchaseOrderItems_PurchaseOrders_PurchaseOrderId"" FOREIGN KEY (""PurchaseOrderId"") REFERENCES ""PurchaseOrders"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_PurchaseOrderItems_StockItems_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""StockItems"" (""Id"") ON DELETE RESTRICT
+                );
+
+                CREATE TABLE IF NOT EXISTS ""GoodsReceipts"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""GrnNumber"" TEXT NOT NULL,
+                    ""PurchaseOrderId"" INTEGER NOT NULL,
+                    ""WarehouseId"" INTEGER NULL,
+                    ""ReceivedDateUtc"" TEXT NOT NULL,
+                    ""ReceivedByUserId"" INTEGER NULL,
+                    ""ReceivedByUsername"" TEXT NULL,
+                    ""Notes"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_GoodsReceipts_PurchaseOrders_PurchaseOrderId"" FOREIGN KEY (""PurchaseOrderId"") REFERENCES ""PurchaseOrders"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_GoodsReceipts_Warehouses_WarehouseId"" FOREIGN KEY (""WarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ""GoodsReceiptItems"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""GoodsReceiptId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""OrderedQuantity"" INTEGER NOT NULL,
+                    ""ReceivedQuantity"" INTEGER NOT NULL,
+                    ""DamagedQuantity"" INTEGER NOT NULL DEFAULT 0,
+                    ""AcceptedQuantity"" INTEGER NOT NULL DEFAULT 0,
+                    ""RejectedQuantity"" INTEGER NOT NULL DEFAULT 0,
+                    ""UnitCost"" TEXT NOT NULL DEFAULT '0',
+                    ""Remarks"" TEXT NULL,
+                    CONSTRAINT ""FK_GoodsReceiptItems_GoodsReceipts_GoodsReceiptId"" FOREIGN KEY (""GoodsReceiptId"") REFERENCES ""GoodsReceipts"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_GoodsReceiptItems_StockItems_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""StockItems"" (""Id"") ON DELETE RESTRICT
+                );
+
+                CREATE TABLE IF NOT EXISTS ""PurchaseReturns"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""ReturnNumber"" TEXT NOT NULL,
+                    ""SupplierId"" INTEGER NOT NULL,
+                    ""PurchaseOrderId"" INTEGER NULL,
+                    ""WarehouseId"" INTEGER NULL,
+                    ""ReturnDateUtc"" TEXT NOT NULL,
+                    ""Status"" TEXT NOT NULL DEFAULT 'COMPLETED',
+                    ""TotalRefundAmount"" TEXT NOT NULL DEFAULT '0',
+                    ""Reason"" TEXT NULL,
+                    ""Notes"" TEXT NULL,
+                    ""CreatedByUserId"" INTEGER NULL,
+                    ""CreatedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_PurchaseReturns_Suppliers_SupplierId"" FOREIGN KEY (""SupplierId"") REFERENCES ""Suppliers"" (""Id"") ON DELETE RESTRICT,
+                    CONSTRAINT ""FK_PurchaseReturns_PurchaseOrders_PurchaseOrderId"" FOREIGN KEY (""PurchaseOrderId"") REFERENCES ""PurchaseOrders"" (""Id"") ON DELETE SET NULL,
+                    CONSTRAINT ""FK_PurchaseReturns_Warehouses_WarehouseId"" FOREIGN KEY (""WarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ""PurchaseReturnItems"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""PurchaseReturnId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""Quantity"" INTEGER NOT NULL,
+                    ""UnitCost"" TEXT NOT NULL DEFAULT '0',
+                    ""Subtotal"" TEXT NOT NULL DEFAULT '0',
+                    ""DefectReason"" TEXT NULL,
+                    CONSTRAINT ""FK_PurchaseReturnItems_PurchaseReturns_PurchaseReturnId"" FOREIGN KEY (""PurchaseReturnId"") REFERENCES ""PurchaseReturns"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_PurchaseReturnItems_StockItems_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""StockItems"" (""Id"") ON DELETE RESTRICT
+                );
+
+                CREATE TABLE IF NOT EXISTS ""SalesOrders"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""InvoiceNumber"" TEXT NOT NULL,
+                    ""CustomerId"" INTEGER NOT NULL,
+                    ""WarehouseId"" INTEGER NULL,
+                    ""SaleDateUtc"" TEXT NOT NULL,
+                    ""Status"" TEXT NOT NULL DEFAULT 'CONFIRMED',
+                    ""PaymentStatus"" TEXT NOT NULL DEFAULT 'UNPAID',
+                    ""Subtotal"" TEXT NOT NULL DEFAULT '0',
+                    ""Tax"" TEXT NOT NULL DEFAULT '0',
+                    ""Discount"" TEXT NOT NULL DEFAULT '0',
+                    ""TotalAmount"" TEXT NOT NULL DEFAULT '0',
+                    ""PaidAmount"" TEXT NOT NULL DEFAULT '0',
+                    ""RemainingAmount"" TEXT NOT NULL DEFAULT '0',
+                    ""Notes"" TEXT NULL,
+                    ""CreatedByUserId"" INTEGER NULL,
+                    ""CreatedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    ""UpdatedAtUtc"" TEXT NULL,
+                    CONSTRAINT ""FK_SalesOrders_Customers_CustomerId"" FOREIGN KEY (""CustomerId"") REFERENCES ""Customers"" (""Id"") ON DELETE RESTRICT,
+                    CONSTRAINT ""FK_SalesOrders_Warehouses_WarehouseId"" FOREIGN KEY (""WarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ""SalesOrderItems"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""SalesOrderId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""Quantity"" INTEGER NOT NULL,
+                    ""UnitPrice"" TEXT NOT NULL DEFAULT '0',
+                    ""Discount"" TEXT NOT NULL DEFAULT '0',
+                    ""Tax"" TEXT NOT NULL DEFAULT '0',
+                    ""Subtotal"" TEXT NOT NULL DEFAULT '0',
+                    CONSTRAINT ""FK_SalesOrderItems_SalesOrders_SalesOrderId"" FOREIGN KEY (""SalesOrderId"") REFERENCES ""SalesOrders"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_SalesOrderItems_StockItems_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""StockItems"" (""Id"") ON DELETE RESTRICT
+                );
+
+                CREATE TABLE IF NOT EXISTS ""SalePayments"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""PaymentNumber"" TEXT NOT NULL,
+                    ""SalesOrderId"" INTEGER NOT NULL,
+                    ""PaymentMethod"" TEXT NOT NULL DEFAULT 'CASH',
+                    ""Amount"" TEXT NOT NULL DEFAULT '0',
+                    ""PaymentDateUtc"" TEXT NOT NULL,
+                    ""ReferenceNo"" TEXT NULL,
+                    ""Notes"" TEXT NULL,
+                    ""ReceivedByUserId"" INTEGER NULL,
+                    ""ReceivedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_SalePayments_SalesOrders_SalesOrderId"" FOREIGN KEY (""SalesOrderId"") REFERENCES ""SalesOrders"" (""Id"") ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS ""SalesReturns"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""ReturnNumber"" TEXT NOT NULL,
+                    ""SalesOrderId"" INTEGER NOT NULL,
+                    ""CustomerId"" INTEGER NOT NULL,
+                    ""WarehouseId"" INTEGER NULL,
+                    ""ReturnDateUtc"" TEXT NOT NULL,
+                    ""Status"" TEXT NOT NULL DEFAULT 'COMPLETED',
+                    ""RefundAmount"" TEXT NOT NULL DEFAULT '0',
+                    ""Reason"" TEXT NULL,
+                    ""Notes"" TEXT NULL,
+                    ""CreatedByUserId"" INTEGER NULL,
+                    ""CreatedByUsername"" TEXT NULL,
+                    ""CreatedAtUtc"" TEXT NOT NULL,
+                    CONSTRAINT ""FK_SalesReturns_SalesOrders_SalesOrderId"" FOREIGN KEY (""SalesOrderId"") REFERENCES ""SalesOrders"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_SalesReturns_Customers_CustomerId"" FOREIGN KEY (""CustomerId"") REFERENCES ""Customers"" (""Id"") ON DELETE RESTRICT,
+                    CONSTRAINT ""FK_SalesReturns_Warehouses_WarehouseId"" FOREIGN KEY (""WarehouseId"") REFERENCES ""Warehouses"" (""Id"") ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS ""SalesReturnItems"" (
+                    ""Id"" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    ""SalesReturnId"" INTEGER NOT NULL,
+                    ""ProductId"" INTEGER NOT NULL,
+                    ""Quantity"" INTEGER NOT NULL,
+                    ""UnitPrice"" TEXT NOT NULL DEFAULT '0',
+                    ""Subtotal"" TEXT NOT NULL DEFAULT '0',
+                    ""Condition"" TEXT NULL,
+                    ""Reason"" TEXT NULL,
+                    CONSTRAINT ""FK_SalesReturnItems_SalesReturns_SalesReturnId"" FOREIGN KEY (""SalesReturnId"") REFERENCES ""SalesReturns"" (""Id"") ON DELETE CASCADE,
+                    CONSTRAINT ""FK_SalesReturnItems_StockItems_ProductId"" FOREIGN KEY (""ProductId"") REFERENCES ""StockItems"" (""Id"") ON DELETE RESTRICT
+                );
             ");
+
+            // Safe ALTER columns for SQLite upgrades
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"StockItems\" ADD COLUMN \"Brand\" TEXT NULL;"); } catch { }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"StockItems\" ADD COLUMN \"MaxStockLevel\" INTEGER NOT NULL DEFAULT 100;"); } catch { }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"StockMovements\" ADD COLUMN \"ReferenceType\" TEXT NULL;"); } catch { }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE \"StockMovements\" ADD COLUMN \"WarehouseId\" INTEGER NULL;"); } catch { }
         }
 
         var passwordHasher = new PasswordHasher<AppUser>();
 
         // 1. Seed Roles if missing
-        var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.Code == "ADMIN");
-        if (adminRole == null)
-        {
-            adminRole = new AppRole
-            {
-                Code = "ADMIN",
-                Name = "Administrator",
-                Description = "Full system access",
-                IsActive = true,
-                CreatedAtUtc = DateTimeOffset.UtcNow,
-                CreatedBy = 1
-            };
-            context.Roles.Add(adminRole);
-            await context.SaveChangesAsync();
-        }
-
-        var managerRole = await context.Roles.FirstOrDefaultAsync(r => r.Code == "MANAGER");
-        if (managerRole == null)
-        {
-            managerRole = new AppRole
-            {
-                Code = "MANAGER",
-                Name = "Manager",
-                Description = "Manager access",
-                IsActive = true,
-                CreatedAtUtc = DateTimeOffset.UtcNow,
-                CreatedBy = 1
-            };
-            context.Roles.Add(managerRole);
-            await context.SaveChangesAsync();
-        }
-
-        var supportRole = await context.Roles.FirstOrDefaultAsync(r => r.Code == "SUPPORT");
-        if (supportRole == null)
-        {
-            supportRole = new AppRole
-            {
-                Code = "SUPPORT",
-                Name = "Senior Support Agent",
-                Description = "Support and read-only access",
-                IsActive = true,
-                CreatedAtUtc = DateTimeOffset.UtcNow,
-                CreatedBy = 1
-            };
-            context.Roles.Add(supportRole);
-            await context.SaveChangesAsync();
-        }
+        var adminRole = await EnsureRoleAsync(context, "ADMIN", "Administrator", "Full system access");
+        var managerRole = await EnsureRoleAsync(context, "MANAGER", "Manager", "Managerial & approval access");
+        var purchasingRole = await EnsureRoleAsync(context, "PURCHASING", "Purchasing Officer", "PO, GRN, and Supplier management");
+        var warehouseRole = await EnsureRoleAsync(context, "WAREHOUSE", "Warehouse Supervisor", "Inventory, transfers, and receiving");
+        var salesRole = await EnsureRoleAsync(context, "SALES", "Sales Representative", "Sales orders, customers, and payments");
+        var staffRole = await EnsureRoleAsync(context, "STAFF", "General Staff", "Standard operational access");
 
         // 2. Seed Admin User if missing
         var adminUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "admin");
@@ -163,6 +453,7 @@ public static class DbSeeder
                 PasswordHash = "",
                 IsActive = true,
                 TwoFactorEnabled = false,
+                TwoFactorSecret = null,
                 CreatedAtUtc = DateTimeOffset.UtcNow
             };
             adminUser.PasswordHash = passwordHasher.HashPassword(adminUser, "Password123!");
@@ -179,6 +470,34 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // 2b. Seed Demo 2FA Admin User if missing
+        var admin2faUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "admin_2fa");
+        if (admin2faUser == null)
+        {
+            admin2faUser = new AppUser
+            {
+                Username = "admin_2fa",
+                Email = "admin_2fa@example.com",
+                PasswordHash = "",
+                IsActive = true,
+                TwoFactorEnabled = true,
+                TwoFactorSecret = "JBSWY3DPEHPK3PXP",
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            };
+            admin2faUser.PasswordHash = passwordHasher.HashPassword(admin2faUser, "Password123!");
+            context.Users.Add(admin2faUser);
+            await context.SaveChangesAsync();
+
+            context.UserRoles.Add(new AppUserRole
+            {
+                UserId = admin2faUser.Id,
+                RoleId = adminRole.Id,
+                AssignedAtUtc = DateTimeOffset.UtcNow,
+                AssignedBy = admin2faUser.Id
+            });
+            await context.SaveChangesAsync();
+        }
+
         // 3. Seed Pages if missing
         var pageDefinitions = new List<(string Code, string Name, string Route, string Icon, int SortOrder, string? ParentCode)>
         {
@@ -190,7 +509,27 @@ public static class DbSeeder
             ("stock-adjustments", "Adjustments", "/stock/adjustments", "scale", 4, "stock"),
             ("stock-movements", "Movements Ledger", "/stock/movements", "history", 5, "stock"),
             ("stock-alerts", "Low Stock Alerts", "/stock/alerts", "alert-triangle", 6, "stock"),
-            ("settings", "Settings", "/settings", "settings", 3, null),
+
+            // Modular additions: Purchasing, Sales, Inventory, Suppliers, Customers, Reports, Audit
+            ("purchases", "Purchasing", "/purchases/orders", "shopping-bag", 3, null),
+            ("purchase-orders", "Purchase Orders", "/purchases/orders", "file-text", 1, "purchases"),
+            ("goods-receipts", "Goods Receipts (GRN)", "/purchases/grn", "truck", 2, "purchases"),
+            ("purchase-returns", "Purchase Returns", "/purchases/returns", "rotate-ccw", 3, "purchases"),
+
+            ("sales", "Sales & Billing", "/sales/orders", "shopping-cart", 4, null),
+            ("sales-orders", "Sales Orders", "/sales/orders", "receipt", 1, "sales"),
+            ("sales-returns", "Sales Returns", "/sales/returns", "rotate-ccw", 2, "sales"),
+
+            ("warehouses", "Warehouses & Transfers", "/warehouses", "archive", 5, null),
+            ("warehouses-list", "Warehouses", "/warehouses", "home", 1, "warehouses"),
+            ("transfers", "Stock Transfers", "/transfers", "repeat", 2, "warehouses"),
+
+            ("suppliers", "Suppliers", "/suppliers", "truck", 6, null),
+            ("customers", "Customers", "/customers", "user-check", 7, null),
+            ("reports", "Analytics & Reports", "/reports", "bar-chart-2", 8, null),
+            ("audit", "Audit Logs", "/audit/logs", "activity", 9, null),
+
+            ("settings", "Settings", "/settings", "settings", 10, null),
             ("users", "Users & Permissions", "/users", "users", 1, "settings"),
             ("units", "Units of Measure", "/units", "box", 2, "settings"),
             ("roles", "System Roles", "/roles", "shield", 3, "settings"),
@@ -220,7 +559,7 @@ public static class DbSeeder
             pageMap[def.Code] = page;
         }
 
-        // Link parent relationships if needed
+        // Link parent relationships
         foreach (var def in pageDefinitions)
         {
             if (def.ParentCode != null && pageMap.TryGetValue(def.ParentCode, out var parentPage))
@@ -234,7 +573,7 @@ public static class DbSeeder
             }
         }
 
-        // 4. Seed Permissions if missing
+        // 4. Seed Permissions
         var permDefinitions = new List<(string PageCode, string Action, string Description)>
         {
             ("dashboard", "view", "View dashboard metrics"),
@@ -251,12 +590,53 @@ public static class DbSeeder
             ("stock-adjustments", "create", "Record stock physical count adjustments"),
             ("stock-movements", "view", "View stock transaction movement ledger"),
             ("stock-alerts", "view", "View low stock and restock alerts"),
+
+            // Purchases permissions
+            ("purchases", "view", "View purchases section"),
+            ("purchase-orders", "view", "View purchase orders"),
+            ("purchase-orders", "create", "Create purchase orders"),
+            ("purchase-orders", "approve", "Approve or reject purchase orders"),
+            ("purchase-orders", "cancel", "Cancel purchase orders"),
+            ("goods-receipts", "view", "View goods receipts"),
+            ("goods-receipts", "create", "Process goods receiving / GRN"),
+            ("purchase-returns", "view", "View purchase returns"),
+            ("purchase-returns", "create", "Process purchase returns to suppliers"),
+
+            // Sales permissions
+            ("sales", "view", "View sales section"),
+            ("sales-orders", "view", "View sales orders and invoices"),
+            ("sales-orders", "create", "Create sales orders"),
+            ("sales-orders", "confirm", "Confirm sales and dispatch stock"),
+            ("sales-orders", "cancel", "Cancel sales orders"),
+            ("sales-orders", "pay", "Record payments for invoices"),
+            ("sales-returns", "view", "View sales returns"),
+            ("sales-returns", "create", "Process customer sales returns"),
+
+            // Warehouses & Transfers
+            ("warehouses", "view", "View warehouse overview"),
+            ("warehouses-list", "view", "View warehouse facilities"),
+            ("warehouses-list", "create", "Create warehouse facilities"),
+            ("transfers", "view", "View stock transfers"),
+            ("transfers", "create", "Create and complete stock transfers"),
+
+            // Suppliers & Customers
+            ("suppliers", "view", "View suppliers"),
+            ("suppliers", "create", "Create suppliers"),
+            ("suppliers", "edit", "Edit suppliers"),
+            ("customers", "view", "View customers"),
+            ("customers", "create", "Create customers"),
+            ("customers", "edit", "Edit customers"),
+
+            // Reports & Audit
+            ("reports", "view", "View analytics and financial reports"),
+            ("audit", "view", "View security audit logs"),
+
+            // Settings & Security
             ("users", "view", "View user accounts and permissions"),
             ("users", "create", "Create new user accounts"),
             ("users", "edit", "Edit user accounts and roles"),
             ("users", "delete", "Disable or remove user accounts"),
             ("units", "view", "View units of measurement"),
-            ("units", "create", "Create new units of measurement"),
             ("units", "edit", "Edit existing units"),
             ("units", "delete", "Delete units of measurement"),
             ("roles", "view", "View system authorization roles"),
@@ -280,11 +660,10 @@ public static class DbSeeder
             {
                 perm = new AppPermission
                 {
-                    PageId = page.Id,
                     Code = permCode,
+                    PageId = page.Id,
                     Action = def.Action,
                     Description = def.Description,
-                    IsActive = true,
                     CreatedAtUtc = DateTimeOffset.UtcNow,
                     CreatedBy = adminUser?.Id ?? 1
                 };
@@ -294,10 +673,10 @@ public static class DbSeeder
             seededPerms.Add(perm);
         }
 
-        // 5. Seed RolePermissions for ADMIN & MANAGER & SUPPORT
+        // 5. Assign Permissions to Roles
         foreach (var perm in seededPerms)
         {
-            // ADMIN gets all permissions
+            // ADMIN gets everything
             if (await context.RolePermissions.FirstOrDefaultAsync(rp => rp.RoleId == adminRole.Id && rp.PermissionId == perm.Id) == null)
             {
                 context.RolePermissions.Add(new AppRolePermission
@@ -309,40 +688,169 @@ public static class DbSeeder
                 });
             }
 
-            // MANAGER gets dashboard, units view/create, settings view, and stock management
-            if (perm.Code is "dashboard.view" or "units.view" or "units.create" or "settings.view"
-                || perm.Code.StartsWith("stock"))
+            // MANAGER gets dashboard, stock, purchases, sales, inventory, reports
+            if (perm.Code is "dashboard.view" or "reports.view" or "audit.view" || perm.Code.StartsWith("stock") || perm.Code.StartsWith("purchase") || perm.Code.StartsWith("sales") || perm.Code.StartsWith("warehouse"))
             {
-                if (await context.RolePermissions.FirstOrDefaultAsync(rp => rp.RoleId == managerRole.Id && rp.PermissionId == perm.Id) == null)
-                {
-                    context.RolePermissions.Add(new AppRolePermission
-                    {
-                        RoleId = managerRole.Id,
-                        PermissionId = perm.Id,
-                        AssignedAtUtc = DateTimeOffset.UtcNow,
-                        AssignedBy = adminUser?.Id ?? 1
-                    });
-                }
+                await EnsureRolePermissionAsync(context, managerRole.Id, perm.Id, adminUser?.Id ?? 1);
             }
 
-            // SUPPORT gets dashboard view, units view, and stock read-only views
-            if (perm.Code is "dashboard.view" or "units.view" or "stock.view" or "stock-items.view" or "stock-movements.view" or "stock-alerts.view")
+            // PURCHASING gets PO, GRN, Purchase Returns, Suppliers, Stock Items view
+            if (perm.Code.StartsWith("purchase") || perm.Code.StartsWith("goods") || perm.Code.StartsWith("supplier") || perm.Code is "stock.view" or "stock-items.view")
             {
-                if (await context.RolePermissions.FirstOrDefaultAsync(rp => rp.RoleId == supportRole.Id && rp.PermissionId == perm.Id) == null)
-                {
-                    context.RolePermissions.Add(new AppRolePermission
-                    {
-                        RoleId = supportRole.Id,
-                        PermissionId = perm.Id,
-                        AssignedAtUtc = DateTimeOffset.UtcNow,
-                        AssignedBy = adminUser?.Id ?? 1
-                    });
-                }
+                await EnsureRolePermissionAsync(context, purchasingRole.Id, perm.Id, adminUser?.Id ?? 1);
+            }
+
+            // WAREHOUSE gets Receiving, Inventory, Movements, Adjustments, Transfers
+            if (perm.Code.StartsWith("stock") || perm.Code.StartsWith("warehouse") || perm.Code.StartsWith("transfer") || perm.Code.StartsWith("goods"))
+            {
+                await EnsureRolePermissionAsync(context, warehouseRole.Id, perm.Id, adminUser?.Id ?? 1);
+            }
+
+            // SALES gets Sales Orders, Payments, Sales Returns, Customers, Stock view
+            if (perm.Code.StartsWith("sales") || perm.Code.StartsWith("customer") || perm.Code is "stock.view" or "stock-items.view" or "stock-alerts.view")
+            {
+                await EnsureRolePermissionAsync(context, salesRole.Id, perm.Id, adminUser?.Id ?? 1);
             }
         }
         await context.SaveChangesAsync();
 
-        // 6. Seed Sample Categories and Stock Items if empty
+        // 6. Seed Warehouses if empty
+        if (await context.Warehouses.FirstOrDefaultAsync() == null)
+        {
+            var warehouses = new List<Warehouse>
+            {
+                new() { Code = "WH-MAIN", Name = "Main Warehouse Phnom Penh", Location = "Phnom Penh SEZ, Sangkat Phleung Chheh Roteh", ContactPhone = "+855 23 999 101", IsActive = true },
+                new() { Code = "WH-REP", Name = "Siem Reap Distribution Hub", Location = "National Road 6, Siem Reap Central", ContactPhone = "+855 63 999 202", IsActive = true },
+                new() { Code = "WH-BAT", Name = "Battambang Regional Branch", Location = "Street 102, Battambang City", ContactPhone = "+855 53 999 303", IsActive = true }
+            };
+            context.Warehouses.AddRange(warehouses);
+            await context.SaveChangesAsync();
+        }
+
+        // 7. Seed Brands if empty
+        if (await context.Brands.FirstOrDefaultAsync() == null)
+        {
+            var brands = new List<Brand>
+            {
+                new() { Name = "Lenovo", Description = "Laptops, workstations, and computing gear" },
+                new() { Name = "Logitech", Description = "Keyboards, mice, scanners, and peripherals" },
+                new() { Name = "Mekong Roast", Description = "Locally grown artisanal roasted coffee beans" },
+                new() { Name = "EcoBox Packaging", Description = "Heavy-duty eco-friendly boxes and tape" },
+                new() { Name = "Apex Safety", Description = "Industrial PPE and warehouse safety wear" }
+            };
+            context.Brands.AddRange(brands);
+            await context.SaveChangesAsync();
+        }
+
+        // 8. Seed Units of Measure if empty
+        if (await context.UnitsOfMeasure.FirstOrDefaultAsync() == null)
+        {
+            var units = new List<UnitOfMeasure>
+            {
+                new() { Code = "PCS", Name = "Pieces" },
+                new() { Code = "BOX", Name = "Box / Carton" },
+                new() { Code = "KG", Name = "Kilograms" },
+                new() { Code = "LTR", Name = "Liters" },
+                new() { Code = "MTR", Name = "Meters" },
+                new() { Code = "SET", Name = "Set / Bundle" }
+            };
+            context.UnitsOfMeasure.AddRange(units);
+            await context.SaveChangesAsync();
+        }
+
+        // 9. Seed Suppliers if empty
+        if (await context.Suppliers.FirstOrDefaultAsync() == null)
+        {
+            var suppliers = new List<Supplier>
+            {
+                new()
+                {
+                    SupplierCode = "SUP-001",
+                    Name = "Mekong Tech Supply Co., Ltd.",
+                    ContactPerson = "Chhay Dara",
+                    Phone = "+855 12 345 678",
+                    Email = "dara.chhay@mekongtech.kh",
+                    Address = "#45 Russian Blvd, Phnom Penh",
+                    PaymentTerms = "Net 30",
+                    IsActive = true
+                },
+                new()
+                {
+                    SupplierCode = "SUP-002",
+                    Name = "Khmer Packaging & Paper Corp",
+                    ContactPerson = "Sok Rathana",
+                    Phone = "+855 17 889 900",
+                    Email = "rathana.sok@khmerpack.com",
+                    Address = "#12 Veng Sreng Blvd, Phnom Penh",
+                    PaymentTerms = "Net 15",
+                    IsActive = true
+                },
+                new()
+                {
+                    SupplierCode = "SUP-003",
+                    Name = "Angkor Beverages Distribution",
+                    ContactPerson = "Keo Samnang",
+                    Phone = "+855 89 112 233",
+                    Email = "samnang.keo@angkorbev.kh",
+                    Address = "National Road 4, Sihanoukville",
+                    PaymentTerms = "Cash",
+                    IsActive = true
+                }
+            };
+            context.Suppliers.AddRange(suppliers);
+            await context.SaveChangesAsync();
+        }
+
+        // 10. Seed Customers if empty
+        if (await context.Customers.FirstOrDefaultAsync() == null)
+        {
+            var customers = new List<Customer>
+            {
+                new()
+                {
+                    CustomerCode = "CUST-001",
+                    Name = "Sokha Mart Central",
+                    ContactPerson = "Heng Sokha",
+                    Phone = "+855 10 445 566",
+                    Email = "sokha@sokhamart.com",
+                    Address = "#89 Mao Tse Toung Blvd, Phnom Penh",
+                    CustomerType = "Business",
+                    CreditLimit = 5000m,
+                    PaymentTerms = "Net 30",
+                    IsActive = true
+                },
+                new()
+                {
+                    CustomerCode = "CUST-002",
+                    Name = "Vireak Buntham Logistics Outlet",
+                    ContactPerson = "Kao Vicheth",
+                    Phone = "+855 16 778 899",
+                    Email = "vicheth@vireakbuntham.com",
+                    Address = "#200 Monivong Blvd, Phnom Penh",
+                    CustomerType = "Business",
+                    CreditLimit = 10000m,
+                    PaymentTerms = "Net 15",
+                    IsActive = true
+                },
+                new()
+                {
+                    CustomerCode = "CUST-003",
+                    Name = "Walk-in Retail Buyer",
+                    ContactPerson = "Store Walk-in",
+                    Phone = "+855 12 000 000",
+                    Email = "retail@store.kh",
+                    Address = "Local Storefront",
+                    CustomerType = "Walk-in",
+                    CreditLimit = 0m,
+                    PaymentTerms = "Cash",
+                    IsActive = true
+                }
+            };
+            context.Customers.AddRange(customers);
+            await context.SaveChangesAsync();
+        }
+
+        // 11. Seed Categories & Stock Items if empty
         if (await context.StockCategories.FirstOrDefaultAsync() == null)
         {
             var categories = new List<StockCategory>
@@ -374,11 +882,13 @@ public static class DbSeeder
                     Name = "Mekong Cold Brew 250ml",
                     Description = "Ready-to-drink organic cold brew glass bottle",
                     CategoryId = catBeverage?.Id,
+                    Brand = "Mekong Roast",
                     Unit = "LTR",
                     CostPrice = 1.20m,
                     SellingPrice = 2.50m,
                     QuantityOnHand = 85,
                     MinStockLevel = 20,
+                    MaxStockLevel = 200,
                     Location = "Zone A-12",
                     IsActive = true
                 },
@@ -389,11 +899,13 @@ public static class DbSeeder
                     Name = "Cardboard Shipping Box L",
                     Description = "Corrugated heavy-duty packing box 40x30x25cm",
                     CategoryId = catPackaging?.Id,
+                    Brand = "EcoBox Packaging",
                     Unit = "BOX",
                     CostPrice = 0.85m,
                     SellingPrice = 1.60m,
                     QuantityOnHand = 450,
                     MinStockLevel = 100,
+                    MaxStockLevel = 1000,
                     Location = "Zone B-04",
                     IsActive = true
                 },
@@ -404,11 +916,13 @@ public static class DbSeeder
                     Name = "Wireless Barcode Scanner 2D",
                     Description = "Handheld Bluetooth & 2.4G warehouse scanner",
                     CategoryId = catElectronics?.Id,
+                    Brand = "Logitech",
                     Unit = "PCS",
                     CostPrice = 45.00m,
                     SellingPrice = 75.00m,
                     QuantityOnHand = 8,
                     MinStockLevel = 15,
+                    MaxStockLevel = 50,
                     Location = "Tech Cage 01",
                     IsActive = true
                 },
@@ -419,11 +933,13 @@ public static class DbSeeder
                     Name = "Thermal Label Roll 4x6",
                     Description = "Direct thermal courier shipping label rolls (500 labels/roll)",
                     CategoryId = catPackaging?.Id,
+                    Brand = "EcoBox Packaging",
                     Unit = "PCS",
                     CostPrice = 3.50m,
                     SellingPrice = 6.00m,
                     QuantityOnHand = 24,
                     MinStockLevel = 50,
+                    MaxStockLevel = 300,
                     Location = "Zone B-08",
                     IsActive = true
                 },
@@ -434,11 +950,13 @@ public static class DbSeeder
                     Name = "USB-C Heavy Duty Cable 2m",
                     Description = "Braided fast-charging sync cables",
                     CategoryId = catElectronics?.Id,
+                    Brand = "Apex Tech",
                     Unit = "PCS",
                     CostPrice = 2.10m,
                     SellingPrice = 5.50m,
                     QuantityOnHand = 0,
                     MinStockLevel = 15,
+                    MaxStockLevel = 100,
                     Location = "Tech Cage 02",
                     IsActive = true
                 },
@@ -449,11 +967,13 @@ public static class DbSeeder
                     Name = "Premium Robusta Beans 1kg",
                     Description = "Mondulkiri highland roasted coffee beans",
                     CategoryId = catRaw?.Id,
+                    Brand = "Mekong Roast",
                     Unit = "KG",
                     CostPrice = 7.20m,
                     SellingPrice = 14.00m,
                     QuantityOnHand = 120,
                     MinStockLevel = 30,
+                    MaxStockLevel = 500,
                     Location = "Dry Vault D-02",
                     IsActive = true
                 },
@@ -464,11 +984,13 @@ public static class DbSeeder
                     Name = "Warehouse Safety Gloves XL",
                     Description = "Cut-resistant polyurethane coated grip gloves",
                     CategoryId = catOffice?.Id,
+                    Brand = "Apex Safety",
                     Unit = "PCS",
                     CostPrice = 1.80m,
                     SellingPrice = 3.50m,
                     QuantityOnHand = 65,
                     MinStockLevel = 20,
+                    MaxStockLevel = 200,
                     Location = "Zone C-01",
                     IsActive = true
                 },
@@ -479,11 +1001,13 @@ public static class DbSeeder
                     Name = "Packaging Bubble Wrap 50m",
                     Description = "Roll 50cm x 50m protective packing wrap",
                     CategoryId = catPackaging?.Id,
+                    Brand = "EcoBox Packaging",
                     Unit = "MTR",
                     CostPrice = 12.00m,
                     SellingPrice = 22.00m,
                     QuantityOnHand = 18,
                     MinStockLevel = 10,
+                    MaxStockLevel = 80,
                     Location = "Zone B-10",
                     IsActive = true
                 }
@@ -499,6 +1023,7 @@ public static class DbSeeder
                 {
                     ReferenceNo = "IN-20260918-001",
                     MovementType = "IN",
+                    ReferenceType = "GRN",
                     ItemId = sampleItems[0].Id,
                     Quantity = 100,
                     UnitPrice = 1.20m,
@@ -515,6 +1040,7 @@ public static class DbSeeder
                 {
                     ReferenceNo = "OUT-20260919-002",
                     MovementType = "OUT",
+                    ReferenceType = "SALE",
                     ItemId = sampleItems[0].Id,
                     Quantity = 15,
                     UnitPrice = 2.50m,
@@ -531,6 +1057,7 @@ public static class DbSeeder
                 {
                     ReferenceNo = "IN-20260919-003",
                     MovementType = "IN",
+                    ReferenceType = "GRN",
                     ItemId = sampleItems[1].Id,
                     Quantity = 500,
                     UnitPrice = 0.85m,
@@ -547,6 +1074,7 @@ public static class DbSeeder
                 {
                     ReferenceNo = "OUT-20260920-004",
                     MovementType = "OUT",
+                    ReferenceType = "SALE",
                     ItemId = sampleItems[1].Id,
                     Quantity = 50,
                     UnitPrice = 1.60m,
@@ -563,6 +1091,7 @@ public static class DbSeeder
                 {
                     ReferenceNo = "ADJ-20260920-005",
                     MovementType = "ADJUSTMENT",
+                    ReferenceType = "ADJUSTMENT",
                     ItemId = sampleItems[2].Id,
                     Quantity = 2,
                     UnitPrice = 45.00m,
@@ -579,6 +1108,172 @@ public static class DbSeeder
 
             context.StockMovements.AddRange(movements);
             await context.SaveChangesAsync();
+
+            // Link initial items to Main Warehouse stocks
+            var mainWh = await context.Warehouses.FirstOrDefaultAsync(w => w.Code == "WH-MAIN");
+            if (mainWh != null)
+            {
+                foreach (var item in sampleItems)
+                {
+                    context.WarehouseStocks.Add(new WarehouseStock
+                    {
+                        WarehouseId = mainWh.Id,
+                        ProductId = item.Id,
+                        QuantityOnHand = item.QuantityOnHand,
+                        ReservedQuantity = 0,
+                        UpdatedAtUtc = DateTimeOffset.UtcNow
+                    });
+                }
+                await context.SaveChangesAsync();
+            }
+
+            // Seed Sample Purchase Order + GRN (Rule 1 & Rule 2 demo)
+            var supTech = await context.Suppliers.FirstOrDefaultAsync(s => s.SupplierCode == "SUP-001");
+            if (supTech != null && mainWh != null)
+            {
+                var po = new PurchaseOrder
+                {
+                    PoNumber = "PO-202609-0001",
+                    SupplierId = supTech.Id,
+                    WarehouseId = mainWh.Id,
+                    OrderDateUtc = DateTimeOffset.UtcNow.AddDays(-5),
+                    ExpectedDateUtc = DateTimeOffset.UtcNow.AddDays(-2),
+                    PaymentTerms = "Net 30",
+                    Status = "RECEIVED",
+                    Subtotal = 450.00m,
+                    Tax = 0,
+                    Discount = 0,
+                    TotalAmount = 450.00m,
+                    Notes = "Restock warehouse scanner peripherals",
+                    CreatedByUsername = "admin",
+                    ApprovedByUsername = "admin",
+                    CreatedAtUtc = DateTimeOffset.UtcNow.AddDays(-5)
+                };
+
+                po.Items.Add(new PurchaseOrderItem
+                {
+                    ProductId = sampleItems[2].Id,
+                    Quantity = 10,
+                    UnitCost = 45.00m,
+                    Discount = 0,
+                    Tax = 0,
+                    Subtotal = 450.00m,
+                    ReceivedQuantity = 10
+                });
+
+                context.PurchaseOrders.Add(po);
+                await context.SaveChangesAsync();
+
+                var grn = new GoodsReceipt
+                {
+                    GrnNumber = "GRN-202609-0001",
+                    PurchaseOrderId = po.Id,
+                    WarehouseId = mainWh.Id,
+                    ReceivedDateUtc = DateTimeOffset.UtcNow.AddDays(-3),
+                    ReceivedByUsername = "admin",
+                    Notes = "All 10 units delivered and inspected in tech cage.",
+                    CreatedAtUtc = DateTimeOffset.UtcNow.AddDays(-3)
+                };
+
+                grn.Items.Add(new GoodsReceiptItem
+                {
+                    ProductId = sampleItems[2].Id,
+                    OrderedQuantity = 10,
+                    ReceivedQuantity = 10,
+                    DamagedQuantity = 0,
+                    AcceptedQuantity = 10,
+                    RejectedQuantity = 0,
+                    UnitCost = 45.00m,
+                    Remarks = "Passed QA inspection"
+                });
+
+                context.GoodsReceipts.Add(grn);
+                await context.SaveChangesAsync();
+            }
+
+            // Seed Sample Sales Order + Payment (Rule 3 & Rule 12 demo)
+            var custSokha = await context.Customers.FirstOrDefaultAsync(c => c.CustomerCode == "CUST-001");
+            if (custSokha != null && mainWh != null)
+            {
+                var sale = new SalesOrder
+                {
+                    InvoiceNumber = "INV-202609-0001",
+                    CustomerId = custSokha.Id,
+                    WarehouseId = mainWh.Id,
+                    SaleDateUtc = DateTimeOffset.UtcNow.AddDays(-2),
+                    Status = "CONFIRMED",
+                    PaymentStatus = "PAID",
+                    Subtotal = 37.50m,
+                    Tax = 0,
+                    Discount = 0,
+                    TotalAmount = 37.50m,
+                    PaidAmount = 37.50m,
+                    RemainingAmount = 0,
+                    Notes = "Retail cold brew order for branch cafe",
+                    CreatedByUsername = "admin",
+                    CreatedAtUtc = DateTimeOffset.UtcNow.AddDays(-2)
+                };
+
+                sale.Items.Add(new SalesOrderItem
+                {
+                    ProductId = sampleItems[0].Id,
+                    Quantity = 15,
+                    UnitPrice = 2.50m,
+                    Discount = 0,
+                    Tax = 0,
+                    Subtotal = 37.50m
+                });
+
+                sale.Payments.Add(new SalePayment
+                {
+                    PaymentNumber = "PAY-202609-0001",
+                    PaymentMethod = "QR",
+                    Amount = 37.50m,
+                    PaymentDateUtc = DateTimeOffset.UtcNow.AddDays(-2),
+                    ReferenceNo = "BAKONG-TX-889102",
+                    Notes = "KHQR Instant settlement",
+                    ReceivedByUsername = "admin",
+                    CreatedAtUtc = DateTimeOffset.UtcNow.AddDays(-2)
+                });
+
+                context.SalesOrders.Add(sale);
+                await context.SaveChangesAsync();
+            }
+        }
+    }
+
+    private static async Task<AppRole> EnsureRoleAsync(AppDbContext context, string code, string name, string description)
+    {
+        var role = await context.Roles.FirstOrDefaultAsync(r => r.Code == code);
+        if (role == null)
+        {
+            role = new AppRole
+            {
+                Code = code,
+                Name = name,
+                Description = description,
+                IsActive = true,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CreatedBy = 1
+            };
+            context.Roles.Add(role);
+            await context.SaveChangesAsync();
+        }
+        return role;
+    }
+
+    private static async Task EnsureRolePermissionAsync(AppDbContext context, int roleId, int permissionId, int assignedBy)
+    {
+        var exists = await context.RolePermissions.AnyAsync(rp => rp.RoleId == roleId && rp.PermissionId == permissionId);
+        if (!exists)
+        {
+            context.RolePermissions.Add(new AppRolePermission
+            {
+                RoleId = roleId,
+                PermissionId = permissionId,
+                AssignedAtUtc = DateTimeOffset.UtcNow,
+                AssignedBy = assignedBy
+            });
         }
     }
 }

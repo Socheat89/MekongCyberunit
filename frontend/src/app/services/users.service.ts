@@ -31,4 +31,8 @@ export class UsersService {
   toggleStatus(userId: number): Observable<UserDto> {
     return this.http.put<UserDto>(`${this.apiUrl}/${userId}/status`, {});
   }
+
+  toggleTwoFactor(userId: number): Observable<UserDto> {
+    return this.http.put<UserDto>(`${this.apiUrl}/${userId}/2fa`, {});
+  }
 }

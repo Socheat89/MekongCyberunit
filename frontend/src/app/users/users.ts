@@ -177,21 +177,27 @@ import { RoleResponse, PermissionResponse } from '../models/role-permission.mode
                     }
                   </td>
 
-                  <!-- Status -->
+                  <!-- Status & 2FA -->
                   <td class="px-5 py-3.5">
-                    @if (user.isActive) {
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                        style="background:linear-gradient(135deg,#d4f5e8,#e8fdf4); border:1px solid #a2ddc4; color:#09765e;">
-                        <span class="w-1.5 h-1.5 rounded-full" style="background:#22c67f;"></span>
-                        Active
+                    <div class="flex flex-col gap-1 items-start">
+                      @if (user.isActive) {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
+                          style="background:linear-gradient(135deg,#d4f5e8,#e8fdf4); border:1px solid #a2ddc4; color:#09765e;">
+                          <span class="w-1.5 h-1.5 rounded-full" style="background:#22c67f;"></span>
+                          Active
+                        </span>
+                      } @else {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
+                          style="background:#f4f6f5; border:1px solid #dce5e3; color:#7a9490;">
+                          <span class="w-1.5 h-1.5 rounded-full" style="background:#b0c4c0;"></span>
+                          Disabled
+                        </span>
+                      }
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold font-mono"
+                        style="background:linear-gradient(135deg,#e0f2fe,#bae6fd); border:1px solid #7dd3fc; color:#0369a1;">
+                        🔒 2FA Enforced
                       </span>
-                    } @else {
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                        style="background:#f4f6f5; border:1px solid #dce5e3; color:#7a9490;">
-                        <span class="w-1.5 h-1.5 rounded-full" style="background:#b0c4c0;"></span>
-                        Disabled
-                      </span>
-                    }
+                    </div>
                   </td>
 
                   <!-- Actions -->
@@ -201,19 +207,42 @@ import { RoleResponse, PermissionResponse } from '../models/role-permission.mode
                         <button
                           type="button"
                           (click)="openPermissionsModal(user)"
-                          class="px-2.5 py-1 rounded-lg text-[11.5px] font-bold transition hover:scale-[1.03]"
-                          style="background:linear-gradient(135deg,#e2f5f0,#ecfaf7); border:1px solid #b8e2d8; color:#0c6861;"
+                          title="Assign Roles & Permissions"
+                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs"
+                          style="background:linear-gradient(135deg,#e0f6f1 0%,#d2f0e9 100%); border:1px solid #a4dfd3; color:#0c6861;"
                         >
-                          Set Roles
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                          </svg>
+                          <span>Roles</span>
                         </button>
-                        <button
-                          type="button"
-                          (click)="toggleUserStatus(user)"
-                          class="px-2.5 py-1 rounded-lg text-[11.5px] font-semibold transition"
-                          style="background:#f4f6f5; border:1px solid #dce5e3; color:#7a9490;"
-                        >
-                          {{ user.isActive ? 'Disable' : 'Enable' }}
-                        </button>
+                        @if (user.isActive) {
+                          <button
+                            type="button"
+                            (click)="toggleUserStatus(user)"
+                            title="Deactivate User Account"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs"
+                            style="background:linear-gradient(135deg,#fef2f2 0%,#fee2e2 100%); border:1px solid #fecaca; color:#dc2626;"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            <span>Disable</span>
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            (click)="toggleUserStatus(user)"
+                            title="Reactivate User Account"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs"
+                            style="background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%); border:1px solid #a7f3d0; color:#059669;"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Enable</span>
+                          </button>
+                        }
                       </div>
                     </td>
                   }
@@ -677,6 +706,21 @@ export class UserList implements OnInit {
       },
       error: err => {
         this.errorMessage.set(err.error?.message || 'Failed to update status.');
+        setTimeout(() => this.errorMessage.set(null), 3000);
+      }
+    });
+  }
+
+  toggleTwoFactor(user: UserDto): void {
+    if (!this.canEdit()) return;
+    this.usersService.toggleTwoFactor(user.id).subscribe({
+      next: updated => {
+        this.users.update(list => list.map(u => (u.id === updated.id ? updated : u)));
+        this.successMessage.set(`Two-Factor authentication ${updated.twoFactorEnabled ? 'Enabled' : 'Disabled'} for ${updated.username}.`);
+        setTimeout(() => this.successMessage.set(null), 2500);
+      },
+      error: err => {
+        this.errorMessage.set(err.error?.message || 'Failed to update 2FA status.');
         setTimeout(() => this.errorMessage.set(null), 3000);
       }
     });

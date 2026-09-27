@@ -14,6 +14,9 @@ export interface LoginResponse {
   accessToken: string | null;
   challengeToken: string | null;
   expiresAtUtc: string | null;
+  requiresSetup?: boolean;
+  qrCodeDataUrl?: string | null;
+  secret?: string | null;
 }
 
 export interface UserResponse {

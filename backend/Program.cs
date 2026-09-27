@@ -4,6 +4,15 @@ using backend.Data;
 using backend.Services;
 using backend.Services.Navigation;
 using backend.Services.Permission;
+using backend.Services.TwoFactor;
+using backend.Modules.Audit;
+using backend.Modules.Catalog;
+using backend.Modules.Suppliers;
+using backend.Modules.Customers;
+using backend.Modules.Inventory;
+using backend.Modules.Purchasing;
+using backend.Modules.Sales;
+using backend.Modules.Reports;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -70,10 +79,21 @@ builder.Services.AddAuthorization(options =>
 
 // 3. Application Services
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INavigationService, NavigationService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
+
+// 3b. Modular Microservices
+builder.Services.AddAuditModule();
+builder.Services.AddCatalogModule();
+builder.Services.AddSupplierModule();
+builder.Services.AddCustomerModule();
+builder.Services.AddInventoryModule();
+builder.Services.AddPurchasingModule();
+builder.Services.AddSalesModule();
+builder.Services.AddReportingModule();
 
 // 4. Controllers & JSON Options
 builder.Services.AddControllers();
@@ -120,11 +140,25 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// 7. Seed Database on startup
+// 7. Seed Database on startup & Transfer from SQLite if Oracle
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DbSeeder.SeedAsync(db);
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await DbSeeder.SeedAsync(db);
+
+        var provider = builder.Configuration["DatabaseProvider"] ?? "Sqlite";
+        if (string.Equals(provider, "Oracle", StringComparison.OrdinalIgnoreCase))
+        {
+            var sqliteConn = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=is405.db";
+            await DataMigrator.TransferFromSqliteAsync(sqliteConn, db);
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Database Initialization Warning] {ex.Message}");
+    }
 }
 
 // 8. HTTP Pipeline

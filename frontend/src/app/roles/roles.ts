@@ -150,10 +150,14 @@ import { RoleResponse, RolePageResponse, CreateRoleRequest, UpdateRoleRequest, P
                       <button
                         type="button"
                         (click)="openEditModal(role)"
-                        class="px-2.5 py-1 rounded-lg text-[11.5px] font-bold transition hover:scale-[1.03]"
-                        style="background:linear-gradient(135deg,#e2f5f0,#ecfaf7); border:1px solid #b8e2d8; color:#0c6861;"
+                        title="Configure Role and Permissions"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs"
+                        style="background:linear-gradient(135deg,#e0f6f1 0%,#d2f0e9 100%); border:1px solid #a4dfd3; color:#0c6861;"
                       >
-                        Edit &amp; Permissions
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                        <span>Edit &amp; Permissions</span>
                       </button>
                     </td>
                   }

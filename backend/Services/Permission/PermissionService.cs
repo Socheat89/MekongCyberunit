@@ -92,9 +92,10 @@ public class PermissionService : IPermissionService
         var actionClean = request.Action.Trim().ToLowerInvariant();
         var code = $"{page.Code.ToLowerInvariant()}.{actionClean}";
 
-        var exists = await _context.Permissions.AnyAsync(
-            p => p.Code.ToLower() == code || (p.PageId == request.PageId && p.Action.ToLower() == actionClean),
-            cancellationToken);
+        var exists = await _context.Permissions
+            .Where(p => p.Code.ToLower() == code || (p.PageId == request.PageId && p.Action.ToLower() == actionClean))
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync(cancellationToken) > 0;
 
         if (exists)
         {

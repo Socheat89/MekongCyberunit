@@ -29,6 +29,18 @@ public class PermissionsController : ControllerBase
         return Ok(permissions);
     }
 
+    [HttpGet("pages")]
+    [Authorize("FullAuth")]
+    public async Task<IActionResult> GetPages(CancellationToken cancellationToken)
+    {
+        var pages = await _context.Pages
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.SortOrder)
+            .Select(p => new { p.Id, p.Code, p.Name, p.ParentId })
+            .ToListAsync(cancellationToken);
+        return Ok(pages);
+    }
+
     [HttpGet("me")]
     [Authorize("FullAuth")]
     [ProducesResponseType(typeof(IReadOnlyList<string>), StatusCodes.Status200OK)]

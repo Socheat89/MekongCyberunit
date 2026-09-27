@@ -122,7 +122,10 @@ public class RoleService : IRoleService
         }
 
         var codeUpper = request.Code.Trim().ToUpperInvariant();
-        var exists = await _context.Roles.AnyAsync(r => r.Code.ToUpper() == codeUpper, cancellationToken);
+        var exists = await _context.Roles
+            .Where(r => r.Code.ToUpper() == codeUpper)
+            .Select(r => r.Id)
+            .FirstOrDefaultAsync(cancellationToken) > 0;
         if (exists)
         {
             return RoleServiceResult<RoleResponse>.Conflict("Role code already exists");

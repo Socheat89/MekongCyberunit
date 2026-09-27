@@ -153,10 +153,14 @@ import {
                       <button
                         type="button"
                         (click)="openEditModal(perm)"
-                        class="px-2.5 py-1 rounded-lg text-[11.5px] font-bold transition hover:scale-[1.03]"
-                        style="background:linear-gradient(135deg,#e2f5f0,#ecfaf7); border:1px solid #b8e2d8; color:#0c6861;"
+                        title="Edit Permission"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 shadow-xs"
+                        style="background:linear-gradient(135deg,#e0f6f1 0%,#d2f0e9 100%); border:1px solid #a4dfd3; color:#0c6861;"
                       >
-                        Edit
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                        <span>Edit</span>
                       </button>
                     </td>
                   }
@@ -201,12 +205,9 @@ import {
               <div>
                 <label class="mk-label"><span class="mk-label-dot"></span> Target Application Page</label>
                 <select [(ngModel)]="createForm.pageId" class="mk-select">
-                  <option [ngValue]="1">1: Dashboard (dashboard)</option>
-                  <option [ngValue]="2">2: Users &amp; Permissions (users)</option>
-                  <option [ngValue]="3">3: Units of Measure (units)</option>
-                  <option [ngValue]="4">4: System Roles (roles)</option>
-                  <option [ngValue]="5">5: System Permissions (permissions)</option>
-                  <option [ngValue]="6">6: Settings (settings)</option>
+                  @for (pg of pages(); track pg.id) {
+                    <option [ngValue]="pg.id">{{ pg.name }} ({{ pg.code }})</option>
+                  }
                 </select>
               </div>
 
@@ -317,6 +318,7 @@ export class PermissionList implements OnInit {
 
   readonly userPermissions = signal<string[]>([]);
   readonly permissions = signal<PermissionResponse[]>([]);
+  readonly pages = signal<Array<{ id: number; code: string; name: string; parentId?: number }>>([]);
   readonly errorMessage = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
 
@@ -339,6 +341,15 @@ export class PermissionList implements OnInit {
   ngOnInit(): void {
     this.permissionsService.getMyPermissions(true).subscribe({
       next: codes => this.userPermissions.set(codes || []),
+      error: () => {}
+    });
+    this.permissionsService.getPages().subscribe({
+      next: list => {
+        this.pages.set(list || []);
+        if (list && list.length > 0 && !this.createForm.pageId) {
+          this.createForm.pageId = list[0].id;
+        }
+      },
       error: () => {}
     });
     this.loadPermissions();

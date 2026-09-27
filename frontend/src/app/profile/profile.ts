@@ -318,6 +318,7 @@ import { PermissionResponse } from '../models/role-permission.models';
                   inputmode="numeric"
                   maxlength="6"
                   [(ngModel)]="disableCode"
+                  (ngModelChange)="onDisableCodeChange($event)"
                   placeholder="123456"
                   class="mk-input text-center text-lg font-bold"
                   style="letter-spacing: 0.35em; font-family: var(--font-mono);"
@@ -405,6 +406,14 @@ export class Profile implements OnInit {
     if (act.includes('edit')) return 'bg-amber-50 text-amber-700 border-amber-200';
     if (act.includes('delete')) return 'bg-rose-50 text-rose-700 border-rose-200';
     return 'bg-slate-50 text-slate-700 border-slate-200';
+  }
+
+  onDisableCodeChange(val: string): void {
+    const cleanCode = (val || '').replace(/\D/g, '');
+    if (cleanCode.length === 6 && !this.isDisabling()) {
+      this.disableCode = cleanCode;
+      this.disableTwoFactor();
+    }
   }
 
   disableTwoFactor(): void {

@@ -17,6 +17,7 @@ public record UserDto(
     IReadOnlyList<int> DirectPermissionIds,
     IReadOnlyList<string> EffectivePermissions,
     bool IsActive,
+    bool TwoFactorEnabled,
     DateTimeOffset CreatedAtUtc);
 
 public class CreateUserWithRolesRequest
@@ -93,9 +94,10 @@ public class UsersController : ControllerBase
         var cleanUsername = request.Username.Trim();
         var cleanEmail = request.Email.Trim().ToLowerInvariant();
 
-        var exists = await _context.Users.AnyAsync(
-            u => u.Username.ToLower() == cleanUsername.ToLower() || u.Email.ToLower() == cleanEmail,
-            cancellationToken);
+        var exists = await _context.Users
+            .Where(u => u.Username.ToLower() == cleanUsername.ToLower() || u.Email.ToLower() == cleanEmail)
+            .Select(u => u.Id)
+            .FirstOrDefaultAsync(cancellationToken) > 0;
 
         if (exists)
         {
@@ -250,6 +252,34 @@ public class UsersController : ControllerBase
         return Ok(dto);
     }
 
+    [HttpPut("{id:int}/2fa")]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ToggleTwoFactor(int id, CancellationToken cancellationToken)
+    {
+        var user = await _context.Users.FindAsync([id], cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        user.TwoFactorEnabled = !user.TwoFactorEnabled;
+        if (!user.TwoFactorEnabled)
+        {
+            user.TwoFactorSecret = null;
+        }
+        else if (string.IsNullOrEmpty(user.TwoFactorSecret))
+        {
+            user.TwoFactorSecret = "JBSWY3DPEHPK3PXP";
+        }
+
+        user.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var dto = await GetUserByIdWithDetailsAsync(id, cancellationToken);
+        return Ok(dto);
+    }
+
     private async Task<UserDto> GetUserByIdWithDetailsAsync(int userId, CancellationToken cancellationToken)
     {
         var user = await _context.Users
@@ -327,6 +357,7 @@ public class UsersController : ControllerBase
             directPermIds,
             effectivePermCodes,
             user.IsActive,
+            user.TwoFactorEnabled,
             user.CreatedAtUtc);
     }
 

@@ -4,7 +4,9 @@ public class StockMovement
 {
     public int Id { get; set; }
     public required string ReferenceNo { get; set; }
-    public required string MovementType { get; set; } // "IN", "OUT", "ADJUSTMENT"
+    public required string MovementType { get; set; } // "IN", "OUT", "ADJUSTMENT", "TRANSFER", "RETURN"
+    public string? ReferenceType { get; set; } // "PO", "GRN", "SALE", "ADJUSTMENT", "TRANSFER", "RETURN", "INITIAL"
+    public int? WarehouseId { get; set; }
     public int ItemId { get; set; }
     public StockItem? Item { get; set; }
     public int Quantity { get; set; }
