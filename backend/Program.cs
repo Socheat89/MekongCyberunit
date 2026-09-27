@@ -39,6 +39,15 @@ else
 
 // 2. JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "IS405_SuperSecret_Jwt_SigningKey_With_At_Least_256_Bits!";
+if (builder.Environment.IsProduction())
+{
+    if (string.IsNullOrWhiteSpace(builder.Configuration["Jwt:Key"]) ||
+        builder.Configuration["Jwt:Key"]!.Contains("SuperSecret") ||
+        Encoding.UTF8.GetByteCount(builder.Configuration["Jwt:Key"]!) < 32)
+    {
+        throw new InvalidOperationException("SECURITY ERROR: In Production, 'Jwt:Key' must be configured with a cryptographically secure key of at least 256 bits (32 bytes).");
+    }
+}
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "https://localhost:7230";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "https://localhost:7230";
 
@@ -99,14 +108,40 @@ builder.Services.AddReportingModule();
 builder.Services.AddControllers();
 
 // 5. CORS
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
+        else
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
     });
+});
+
+// 5b. Rate Limiting (Brute-Force & DoS Protection)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("AuthRateLimit", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 });
 
 // 6. Swagger / OpenAPI Documentation
@@ -161,20 +196,60 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 8. HTTP Pipeline
+// 8. HTTP Pipeline & Security Hardening
+// 8a. Global Unhandled Exception Handling Middleware (Prevent Stack Trace & Info Leaks)
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetService<ILogger<Program>>();
+        logger?.LogError(ex, "Unhandled exception processing request {Method} {Path}", context.Request.Method, context.Request.Path);
+
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync("{\"message\":\"An unexpected internal server error occurred. Please try again later.\"}");
+        }
+    }
+});
+
+// 8b. HTTP Security Headers Middleware (OWASP Secure Headers)
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["X-XSS-Protection"] = "0";
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';";
+    context.Response.Headers["Permissions-Policy"] = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()";
+
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    app.UseHsts();
 }
 
 app.UseRouting();
 
 app.UseCors();
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
 
-// Middleware: Reject requests if the authenticated user account has been disabled
+// 8c. Middleware: Reject requests if the authenticated user account has been disabled or is locked
 app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated == true)
@@ -185,17 +260,25 @@ app.Use(async (context, next) =>
         if (int.TryParse(idClaim, out var userId))
         {
             var dbContext = context.RequestServices.GetRequiredService<AppDbContext>();
-            var isActive = await dbContext.Users
+            var userStatus = await dbContext.Users
                 .AsNoTracking()
                 .Where(u => u.Id == userId)
-                .Select(u => u.IsActive)
+                .Select(u => new { u.IsActive, u.LockoutEndUtc })
                 .FirstOrDefaultAsync(context.RequestAborted);
 
-            if (!isActive)
+            if (userStatus == null || !userStatus.IsActive)
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsync("{\"message\":\"Account has been disabled. Please contact system administrator.\"}", context.RequestAborted);
+                return;
+            }
+
+            if (userStatus.LockoutEndUtc.HasValue && userStatus.LockoutEndUtc.Value > DateTimeOffset.UtcNow)
+            {
+                context.Response.StatusCode = StatusCodes.Status423Locked;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("{\"message\":\"Account is locked. Please try again later.\"}", context.RequestAborted);
                 return;
             }
         }

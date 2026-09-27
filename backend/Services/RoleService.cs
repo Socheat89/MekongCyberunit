@@ -193,6 +193,11 @@ public class RoleService : IRoleService
             return RoleServiceResult<RoleResponse>.NotFound("Role was not found");
         }
 
+        if (string.Equals(role.Code, "ADMIN", StringComparison.OrdinalIgnoreCase) && !request.IsActive)
+        {
+            return RoleServiceResult<RoleResponse>.BadRequest("The core system ADMIN role cannot be deactivated.");
+        }
+
         role.Name = request.Name.Trim();
         role.Description = request.Description;
         role.IsActive = request.IsActive;

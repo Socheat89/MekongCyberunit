@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.Data;
 using backend.Models.Request;
+using backend.Modules.Audit.Services;
 using backend.Services.Permission;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,11 +15,16 @@ public class PermissionsController : ControllerBase
 {
     private readonly IPermissionService _permissionService;
     private readonly AppDbContext _context;
+    private readonly IAuditService _auditService;
 
-    public PermissionsController(IPermissionService permissionService, AppDbContext context)
+    public PermissionsController(
+        IPermissionService permissionService,
+        AppDbContext context,
+        IAuditService auditService)
     {
         _permissionService = permissionService;
         _context = context;
+        _auditService = auditService;
     }
 
     [HttpGet]
@@ -107,12 +113,18 @@ public class PermissionsController : ControllerBase
     [ProducesResponseType(typeof(PermissionResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create(
         [FromBody] CreatePermissionRequest request,
         CancellationToken cancellationToken)
     {
+        if (!User.IsInRole("ADMIN"))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only administrators can create system permissions." });
+        }
+
         var actorUserId = GetCurrentUserId();
         if (actorUserId == null)
         {
@@ -126,6 +138,16 @@ public class PermissionsController : ControllerBase
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
 
+        await _auditService.LogAsync(
+            action: "CREATE_PERMISSION",
+            entityName: "AppPermission",
+            entityId: result.Value?.Id.ToString(),
+            description: $"Created system permission '{result.Value?.Code}'",
+            userId: actorUserId,
+            username: GetCurrentUsername(),
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
+            cancellationToken: cancellationToken);
+
         return StatusCode(StatusCodes.Status201Created, result.Value);
     }
 
@@ -134,12 +156,18 @@ public class PermissionsController : ControllerBase
     [ProducesResponseType(typeof(PermissionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(
         int id,
         [FromBody] UpdatePermissionRequest request,
         CancellationToken cancellationToken)
     {
+        if (!User.IsInRole("ADMIN"))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only administrators can update system permissions." });
+        }
+
         var actorUserId = GetCurrentUserId();
         if (actorUserId == null)
         {
@@ -153,6 +181,16 @@ public class PermissionsController : ControllerBase
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
 
+        await _auditService.LogAsync(
+            action: "UPDATE_PERMISSION",
+            entityName: "AppPermission",
+            entityId: id.ToString(),
+            description: $"Updated system permission ID {id}",
+            userId: actorUserId,
+            username: GetCurrentUsername(),
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
+            cancellationToken: cancellationToken);
+
         return Ok(result.Value);
     }
 
@@ -162,4 +200,9 @@ public class PermissionsController : ControllerBase
                    ?? User.FindFirst("sub")?.Value;
         return int.TryParse(idClaim, out var id) ? id : null;
     }
+
+    private string? GetCurrentUsername() =>
+        User.FindFirst(ClaimTypes.Name)?.Value
+        ?? User.FindFirst("name")?.Value
+        ?? User.Identity?.Name;
 }

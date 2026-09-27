@@ -1,25 +1,31 @@
 using System.Security.Claims;
 using backend.Models.Request;
+using backend.Modules.Audit.Services;
 using backend.Services;
 using backend.Services.TwoFactor;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("AuthRateLimit")]
 public class AuthController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly ITwoFactorService _twoFactorService;
+    private readonly IAuditService _auditService;
 
     public AuthController(
         IUserService userService,
-        ITwoFactorService twoFactorService)
+        ITwoFactorService twoFactorService,
+        IAuditService auditService)
     {
         _userService = userService;
         _twoFactorService = twoFactorService;
+        _auditService = auditService;
     }
 
     [HttpPost("register")]
@@ -36,8 +42,28 @@ public class AuthController : ControllerBase
 
         if (!result.Succeeded)
         {
+            await _auditService.LogAsync(
+                action: "AUTH_REGISTER_FAILED",
+                entityName: "AppUser",
+                entityId: null,
+                description: $"Registration failed for '{request.Username}': {result.Message}",
+                userId: null,
+                username: request.Username,
+                ipAddress: ipAddress,
+                cancellationToken: cancellationToken);
+
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
+
+        await _auditService.LogAsync(
+            action: "AUTH_REGISTER_SUCCESS",
+            entityName: "AppUser",
+            entityId: result.Value?.Id.ToString(),
+            description: $"New user registered: '{request.Username}'",
+            userId: result.Value?.Id,
+            username: request.Username,
+            ipAddress: ipAddress,
+            cancellationToken: cancellationToken);
 
         return StatusCode(StatusCodes.Status201Created, result.Value);
     }
@@ -56,6 +82,16 @@ public class AuthController : ControllerBase
 
         if (!result.Succeeded)
         {
+            await _auditService.LogAsync(
+                action: result.StatusCode == StatusCodes.Status423Locked ? "AUTH_ACCOUNT_LOCKED" : "AUTH_LOGIN_FAILED",
+                entityName: "AppUser",
+                entityId: null,
+                description: $"Login failed for username '{request.Username}'. Status: {result.StatusCode}",
+                userId: null,
+                username: request.Username,
+                ipAddress: ipAddress,
+                cancellationToken: cancellationToken);
+
             if (result.StatusCode == StatusCodes.Status423Locked)
             {
                 return StatusCode(StatusCodes.Status423Locked, new
@@ -67,6 +103,16 @@ public class AuthController : ControllerBase
 
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
+
+        await _auditService.LogAsync(
+            action: "AUTH_LOGIN_SUCCESS",
+            entityName: "AppUser",
+            entityId: null,
+            description: $"Successful login for user '{request.Username}' (2FA required: {result.Value?.RequiresTwoFactor})",
+            userId: null,
+            username: request.Username,
+            ipAddress: ipAddress,
+            cancellationToken: cancellationToken);
 
         return Ok(result.Value);
     }
@@ -90,6 +136,16 @@ public class AuthController : ControllerBase
         {
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
+
+        await _auditService.LogAsync(
+            action: "AUTH_2FA_SETUP",
+            entityName: "AppUser",
+            entityId: userId.Value.ToString(),
+            description: "2FA TOTP setup initialized",
+            userId: userId.Value,
+            username: GetCurrentUsername(),
+            ipAddress: ipAddress,
+            cancellationToken: cancellationToken);
 
         return Ok(result.Value);
     }
@@ -118,6 +174,16 @@ public class AuthController : ControllerBase
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
 
+        await _auditService.LogAsync(
+            action: "AUTH_2FA_ENABLED",
+            entityName: "AppUser",
+            entityId: userId.Value.ToString(),
+            description: "2FA successfully enabled and verified",
+            userId: userId.Value,
+            username: GetCurrentUsername(),
+            ipAddress: ipAddress,
+            cancellationToken: cancellationToken);
+
         return Ok(result.Value);
     }
 
@@ -135,6 +201,16 @@ public class AuthController : ControllerBase
 
         if (!result.Succeeded)
         {
+            await _auditService.LogAsync(
+                action: result.StatusCode == StatusCodes.Status423Locked ? "AUTH_2FA_LOCKED" : "AUTH_2FA_FAILED",
+                entityName: "AppUser",
+                entityId: null,
+                description: $"2FA login verification failed. Status: {result.StatusCode}",
+                userId: null,
+                username: null,
+                ipAddress: ipAddress,
+                cancellationToken: cancellationToken);
+
             if (result.StatusCode == StatusCodes.Status423Locked)
             {
                 return StatusCode(StatusCodes.Status423Locked, new
@@ -146,6 +222,16 @@ public class AuthController : ControllerBase
 
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
+
+        await _auditService.LogAsync(
+            action: "AUTH_2FA_VERIFIED",
+            entityName: "AppUser",
+            entityId: null,
+            description: "2FA verification succeeded; issued full access token",
+            userId: null,
+            username: null,
+            ipAddress: ipAddress,
+            cancellationToken: cancellationToken);
 
         return Ok(result.Value);
     }
@@ -172,6 +258,16 @@ public class AuthController : ControllerBase
             return StatusCode(result.StatusCode, new { message = result.Message });
         }
 
+        await _auditService.LogAsync(
+            action: "AUTH_2FA_DISABLED",
+            entityName: "AppUser",
+            entityId: userId.Value.ToString(),
+            description: "2FA authentication was disabled",
+            userId: userId.Value,
+            username: GetCurrentUsername(),
+            ipAddress: ipAddress,
+            cancellationToken: cancellationToken);
+
         return Ok(result.Value);
     }
 
@@ -187,4 +283,9 @@ public class AuthController : ControllerBase
 
         return null;
     }
+
+    private string? GetCurrentUsername() =>
+        User.FindFirst(ClaimTypes.Name)?.Value
+        ?? User.FindFirst("name")?.Value
+        ?? User.Identity?.Name;
 }
